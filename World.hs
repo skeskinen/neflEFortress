@@ -20,6 +20,11 @@ data Creature = Creature {
     , _creatureId   :: CreatureId
     , _creaturePos  :: (Int, Int, Int)
     , _creatureAct  :: CreatureId -> State World ()
+    , _creatureAI   :: AI
+}
+
+data AI = AI {
+      _aiState :: Int
 }
 
 data World = World {
@@ -30,6 +35,7 @@ data World = World {
 
 makeLenses ''World
 makeLenses ''Creature
+makeLenses ''AI
 
 creatureById :: CreatureId -> Lens' World (Maybe Creature)
 creatureById i = worldCreatures . at i
@@ -53,3 +59,14 @@ modifyCreature :: MonadState World m => CreatureId -> (Creature -> Creature) -> 
 modifyCreature i f = do
     creatureById i . traverse %= f
 
+moveCreature :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
+moveCreature cid pos = do
+    mcreature <- use (creatureById cid)
+    case mcreature of
+        -- TODO: add border checking (to terrainTile?)
+        Just creature -> do
+            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
+            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+            modifyCreature cid (creaturePos .~ pos)
+        Nothing -> return ()
+          

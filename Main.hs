@@ -2,6 +2,9 @@ module Main where
 
 import qualified Data.IntMap as IM
 import qualified Data.Vector as V
+import Control.Lens
+import Control.Monad.State
+
 import World
 import Terrain
 
@@ -26,10 +29,29 @@ simpleTerrain = Terrain {
         , _tileType = TileEmpty
     }
 
+simpleAI :: AI
+simpleAI = AI 0
+
+
+simpleAct :: CreatureId -> State World ()
+simpleAct cid = do
+    mcreature <- use (creatureById cid)
+    case mcreature of
+        Just creature -> do
+            let dir = creature ^. creatureAI . aiState
+            let coor = [_1, _2] !! (dir `mod` 2)
+            let diff = 2 * (dir `div` 2) - 1
+            moveCreature cid ((creature ^. creaturePos) & coor +~ diff) 
+            modifyCreature cid (creatureAI . aiState %~ (\i -> (i + 1) `mod` 4))
+        Nothing -> return ()
+
+
 simpleCreature :: Creature 
 simpleCreature = Creature {
       _creatureType = CreatureNefle
     , _creatureId = 1
     , _creaturePos = (5, 5, 0)
-    , _creatureAct = const $ return ()
+    , _creatureAct = simpleAct
+    , _creatureAI = simpleAI
 }
+
