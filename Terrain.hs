@@ -12,14 +12,14 @@ data TileType =
 
 data Tile = Tile {
       _tileCreatures :: [Int]
-    , _tileType        :: TileType
+    , _tileType      :: TileType
 }
 
 
 data Terrain = Terrain { 
       _terrainWidth   :: Int
     , _terrainHeight  :: Int
-    , _terrainDepth      :: Int
+    , _terrainDepth   :: Int
     , _terrainTiles   :: V.Vector Tile
 }
 
@@ -37,7 +37,7 @@ getTerrainTile :: Terrain -> (Int, Int, Int) -> Tile
 getTerrainTile terrain pos = view terrainTiles terrain V.! indexTerrain terrain pos
 
 setTerrainTile :: Terrain -> (Int, Int, Int) -> Tile -> Terrain
-setTerrainTile terrain pos tile = terrain & terrainTiles %~ (V.// [(indexTerrain terrain pos, tile)]) 
+setTerrainTile terrain pos tile = terrain & terrainTiles . ix (indexTerrain terrain pos) .~ tile
 
 terrainTile :: (Int, Int, Int) -> Lens' Terrain Tile
 terrainTile pos f terrain = setTerrainTile terrain pos <$> f (getTerrainTile terrain pos)

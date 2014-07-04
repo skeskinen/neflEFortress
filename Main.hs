@@ -34,16 +34,12 @@ simpleAI = AI 0
 
 
 simpleAct :: CreatureId -> State World ()
-simpleAct cid = do
-    mcreature <- use (creatureById cid)
-    case mcreature of
-        Just creature -> do
-            let dir = creature ^. creatureAI . aiState
-            let coor = [_1, _2] !! (dir `mod` 2)
-            let diff = 2 * (dir `div` 2) - 1
-            moveCreature cid ((creature ^. creaturePos) & coor +~ diff) 
-            modifyCreature cid (creatureAI . aiState %~ (\i -> (i + 1) `mod` 4))
-        Nothing -> return ()
+simpleAct cid = traverseM_ (use (creatureById cid)) $ \creature -> do 
+    let dir = creature ^. creatureAI . aiState
+    let coor = [_1, _2] !! (dir `mod` 2)
+    let diff = 2 * (dir `div` 2) - 1
+    moveCreature cid ((creature ^. creaturePos) & coor +~ diff) 
+    modifyCreature cid (creatureAI . aiState %~ (\i -> (i + 1) `mod` 4))
 
 
 simpleCreature :: Creature 

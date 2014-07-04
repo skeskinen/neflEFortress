@@ -2,10 +2,9 @@
 module World where
 
 import qualified Data.IntMap as IM
-import qualified Data.Vector as V
 import Control.Lens
 import Control.Monad.State
-import Control.Applicative ((<$>))
+import Control.Applicative
 
 import Terrain
 
@@ -56,17 +55,18 @@ addCreature creature world =
     newCreature = creature & creatureId .~ newId
 
 modifyCreature :: MonadState World m => CreatureId -> (Creature -> Creature) -> m ()
-modifyCreature i f = do
-    creatureById i . traverse %= f
+modifyCreature i f = creatureById i . traverse %= f
+
+traverseM :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m (t b)
+traverseM m f = m >>= mapMOf traverse f
+
+traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
+traverseM_ m f = traverseM m f >> return ()
 
 moveCreature :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
-moveCreature cid pos = do
-    mcreature <- use (creatureById cid)
-    case mcreature of
+moveCreature cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
         -- TODO: add border checking (to terrainTile?)
-        Just creature -> do
-            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
-            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
-            modifyCreature cid (creaturePos .~ pos)
-        Nothing -> return ()
-          
+        worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
+        worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+        modifyCreature cid (creaturePos .~ pos)
+
