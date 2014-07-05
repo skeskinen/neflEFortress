@@ -19,7 +19,7 @@ data Creature = Creature {
       _creatureType :: CreatureType
     , _creatureId   :: CreatureId
     , _creaturePos  :: (Int, Int, Int)
-    , _creatureAct  :: CreatureId -> State World ()
+    , _creatureAct  :: Creature -> State World ()
     , _creatureAI   :: AI
 }
 
@@ -30,7 +30,7 @@ data AI = AI {
 data World = World {
       _worldTerrain   :: Terrain
     , _worldCreatures :: IM.IntMap Creature
-    , _worldMaxId      :: Int
+    , _worldMaxId     :: Int
 }
 
 makeLenses ''World
@@ -43,17 +43,18 @@ creatureById i = worldCreatures . at i
 worldPhysics :: State World ()
 worldPhysics = do
     world <- get
-    let creaturePhys cid creature = do
+    let creaturePhys creature = do
         let newpos = creature ^. creaturePos & _3 +~ 1
-        when (TileEmpty == world ^. worldTerrain . terrainTile newpos . tileType) $ do
-            moveCreature cid newpos
+        if TileEmpty == world ^. worldTerrain . terrainTile newpos . tileType
+            then moveCreature creature newpos
+            else return creature
     
-    itraverse_ creaturePhys (world ^. worldCreatures) 
+    (worldCreatures .=) =<< traverse creaturePhys (world ^. worldCreatures) 
 
 stepWorld :: State World ()
 stepWorld = do
     creatures <- IM.toList <$> use worldCreatures
-    mapM_ (\(i, creature) -> (creature ^. creatureAct) i) creatures
+    mapM_ (\(i, creature) -> (creature ^. creatureAct) creature) creatures
 
     worldPhysics
 
@@ -76,8 +77,19 @@ traverseM m f = m >>= mapMOf traverse f
 traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
 traverseM_ m f = traverseM m f >> return ()
 
-moveCreature :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
-moveCreature cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
+moveCreature :: MonadState World m => Creature -> (Int, Int, Int) -> m Creature
+moveCreature creature pos = do
+        t <- use $ worldTerrain . terrainTile pos . tileType
+        if t == TileEmpty 
+          then do
+            let cid = creature ^. creatureId
+            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
+            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+            return $ creature & creaturePos .~ pos
+          else return creature
+
+moveCreatureById :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
+moveCreatureById cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
         t <- use $ worldTerrain . terrainTile pos . tileType
         when (t == TileEmpty) $ do
             worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)

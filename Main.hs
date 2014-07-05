@@ -38,12 +38,13 @@ simpleTerrain = modify Terrain {
 simpleAI :: AI
 simpleAI = AI 0
 
-simpleAct :: CreatureId -> State World ()
-simpleAct cid = traverseM_ (use (creatureById cid)) $ \creature -> do 
+simpleAct :: Creature -> State World ()
+simpleAct creature = do
     let dir = creature ^. creatureAI . aiState
     let coor = [_1, _2] !! (dir `mod` 2)
     let diff = 2 * (dir `div` 2) - 1
-    moveCreature cid ((creature ^. creaturePos) & coor +~ diff) 
+    let cid = creature ^. creatureId
+    moveCreatureById cid ((creature ^. creaturePos) & coor +~ diff) 
     modifyCreature cid (creatureAI . aiState %~ (\i -> (i + 1) `mod` 4))
 
 
