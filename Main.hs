@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 import Control.Lens
 import Control.Monad.State
@@ -31,7 +32,7 @@ simpleTerrain = modify Terrain {
         & terrainTile (5,4,1) . tileType .~ TileEmpty
     tiles = V.replicate 100 (tile TileEmpty) V.++ V.replicate 200 (tile TileGround)
     tile t = Tile {
-          _tileCreatures = []
+          _tileCreatures = IS.empty
         , _tileType = t
     }
 

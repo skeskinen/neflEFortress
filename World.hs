@@ -63,7 +63,7 @@ addCreature :: Creature -> World -> World
 addCreature creature world =
     world & worldMaxId +~ 1
           & worldCreatures %~ IM.insert newId newCreature
-          & worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %~ (newId :)
+          & worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains newId .~ True
   where
     newId = world ^. worldMaxId + 1 
     newCreature = creature & creatureId .~ newId
@@ -83,8 +83,8 @@ moveCreature creature pos = do
         if t == TileEmpty 
           then do
             let cid = creature ^. creatureId
-            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
-            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
+            worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
             return $ creature & creaturePos .~ pos
           else return creature
 
@@ -92,7 +92,7 @@ moveCreatureById :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
 moveCreatureById cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
         t <- use $ worldTerrain . terrainTile pos . tileType
         when (t == TileEmpty) $ do
-            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
-            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
+            worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
             modifyCreature cid (creaturePos .~ pos)
 

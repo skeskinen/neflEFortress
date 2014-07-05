@@ -2,6 +2,7 @@
 module Terrain where
 
 import qualified Data.Vector as V
+import qualified Data.IntSet as IS
 import Control.Applicative ((<$>))
 import Control.Lens
 import Data.Maybe (fromMaybe)
@@ -13,7 +14,7 @@ data TileType =
     deriving (Enum, Eq)
 
 data Tile = Tile {
-      _tileCreatures :: [Int]
+      _tileCreatures :: IS.IntSet
     , _tileType      :: TileType
 }
 
@@ -34,12 +35,12 @@ instance Show TileType where
 
 instance Show Tile where
     show t 
-      | null $ t ^. tileCreatures = show $ t ^. tileType
+      | IS.null $ t ^. tileCreatures = show $ t ^. tileType
       | otherwise = "@"
 
 invalidTile :: Tile
 invalidTile = Tile {
-      _tileCreatures = []
+      _tileCreatures = IS.empty
     , _tileType = TileInvalid
 }
 
