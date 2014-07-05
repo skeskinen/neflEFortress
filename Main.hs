@@ -16,22 +16,27 @@ simpleWorld = addCreature simpleCreature World {
     , _worldMaxId = 0
 }
 
+runSimpleWorld :: Int -> World
+runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
+
 simpleTerrain :: Terrain
-simpleTerrain = Terrain {
+simpleTerrain = modify Terrain {
       _terrainWidth = 10
     , _terrainHeight = 10
-    , _terrainDepth = 1
-    , _terrainTiles = V.replicate 100 tile
+    , _terrainDepth = 3
+    , _terrainTiles = tiles
 }
   where
-    tile = Tile {
-        _tileCreatures = []
-        , _tileType = TileEmpty
+    modify terrain = terrain
+        & terrainTile (5,4,1) . tileType .~ TileEmpty
+    tiles = V.replicate 100 (tile TileEmpty) V.++ V.replicate 200 (tile TileGround)
+    tile t = Tile {
+          _tileCreatures = []
+        , _tileType = t
     }
 
 simpleAI :: AI
 simpleAI = AI 0
-
 
 simpleAct :: CreatureId -> State World ()
 simpleAct cid = traverseM_ (use (creatureById cid)) $ \creature -> do 

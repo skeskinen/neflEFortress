@@ -4,17 +4,18 @@ module Terrain where
 import qualified Data.Vector as V
 import Control.Applicative ((<$>))
 import Control.Lens
+import Data.Maybe (fromMaybe)
 
 data TileType = 
-      TileEmpty
+      TileInvalid
+    | TileEmpty
     | TileGround
-    deriving Enum
+    deriving (Enum, Eq)
 
 data Tile = Tile {
       _tileCreatures :: [Int]
     , _tileType      :: TileType
 }
-
 
 data Terrain = Terrain { 
       _terrainWidth   :: Int
@@ -23,9 +24,14 @@ data Terrain = Terrain {
     , _terrainTiles   :: V.Vector Tile
 }
 
-
 makeLenses ''Tile
 makeLenses ''Terrain
+
+invalidTile :: Tile
+invalidTile = Tile {
+      _tileCreatures = []
+    , _tileType = TileInvalid
+}
 
 indexTerrain :: Terrain -> (Int, Int, Int) -> Int
 indexTerrain terrain (x, y, z) = x + y * w + z * w * h
@@ -34,11 +40,12 @@ indexTerrain terrain (x, y, z) = x + y * w + z * w * h
     h = view terrainHeight terrain
 
 getTerrainTile :: Terrain -> (Int, Int, Int) -> Tile
-getTerrainTile terrain pos = view terrainTiles terrain V.! indexTerrain terrain pos
+getTerrainTile terrain pos = terrain ^? terrainTiles . ix (indexTerrain terrain pos) & fromMaybe invalidTile
 
 setTerrainTile :: Terrain -> (Int, Int, Int) -> Tile -> Terrain
 setTerrainTile terrain pos tile = terrain & terrainTiles . ix (indexTerrain terrain pos) .~ tile
 
+-- Note: not a real lens outside when passed invalid coordinates
 terrainTile :: (Int, Int, Int) -> Lens' Terrain Tile
 terrainTile pos f terrain = setTerrainTile terrain pos <$> f (getTerrainTile terrain pos)
 

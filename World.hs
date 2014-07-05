@@ -4,6 +4,7 @@ module World where
 import qualified Data.IntMap as IM
 import Control.Lens
 import Control.Monad.State
+import Control.Monad (when, (=<<))
 import Control.Applicative
 
 import Terrain
@@ -12,7 +13,7 @@ type CreatureId = Int
 
 data CreatureType = 
     CreatureNefle
-  deriving Enum
+  deriving (Enum, Eq)
 
 data Creature = Creature {
       _creatureType :: CreatureType
@@ -39,10 +40,22 @@ makeLenses ''AI
 creatureById :: CreatureId -> Lens' World (Maybe Creature)
 creatureById i = worldCreatures . at i
 
+worldPhysics :: State World ()
+worldPhysics = do
+    world <- get
+    let creaturePhys cid creature = do
+        let newpos = creature ^. creaturePos & _3 +~ 1
+        when (TileEmpty == world ^. worldTerrain . terrainTile newpos . tileType) $ do
+            moveCreature cid newpos
+    
+    itraverse_ creaturePhys (world ^. worldCreatures) 
+
 stepWorld :: State World ()
 stepWorld = do
     creatures <- IM.toList <$> use worldCreatures
     mapM_ (\(i, creature) -> (creature ^. creatureAct) i) creatures
+
+    worldPhysics
 
 
 addCreature :: Creature -> World -> World
@@ -65,8 +78,9 @@ traverseM_ m f = traverseM m f >> return ()
 
 moveCreature :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
 moveCreature cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
-        -- TODO: add border checking (to terrainTile?)
-        worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
-        worldTerrain . terrainTile pos . tileCreatures %= (cid :)
-        modifyCreature cid (creaturePos .~ pos)
+        t <- use $ worldTerrain . terrainTile pos . tileType
+        when (t == TileEmpty) $ do
+            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures %= filter (/= cid)
+            worldTerrain . terrainTile pos . tileCreatures %= (cid :)
+            modifyCreature cid (creaturePos .~ pos)
 
