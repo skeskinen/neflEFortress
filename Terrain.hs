@@ -27,6 +27,16 @@ data Terrain = Terrain {
 makeLenses ''Tile
 makeLenses ''Terrain
 
+instance Show TileType where
+    show TileInvalid = "%"
+    show TileEmpty   = "+"
+    show TileGround  = "."
+
+instance Show Tile where
+    show t 
+      | null $ t ^. tileCreatures = show $ t ^. tileType
+      | otherwise = "@"
+
 invalidTile :: Tile
 invalidTile = Tile {
       _tileCreatures = []
