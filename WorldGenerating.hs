@@ -10,10 +10,13 @@ import Control.Lens
 import Control.Monad.State
 
 simpleWorld :: World
-simpleWorld = addCreature simpleCreature World {
+simpleWorld = 
+    addCreature simpleCreature $
+    addItem simpleItem $ World {
       _worldTerrain = simpleTerrain
     , _worldCreatures = IM.empty
     , _worldMaxId = 0
+    , _worldItems = IM.empty
 }
 
 runSimpleWorld :: Int -> World
@@ -32,8 +35,12 @@ simpleTerrain = modify Terrain {
     tiles = V.replicate 100 (tile TileEmpty) V.++ V.replicate 200 (tile TileGround)
     tile t = Tile {
           _tileCreatures = IS.empty
+        , _tileItems = IS.empty
         , _tileType = t
     }
+
+simpleAI :: AI
+simpleAI = AI 0
 
 simpleAct :: Creature -> State World ()
 simpleAct creature = do
@@ -53,8 +60,13 @@ simpleCreature = Creature {
     , _creaturePos = (5, 5, 0)
     , _creatureAct = simpleAct
     , _creatureAI = simpleAI
+    , _creatureItems = []
 }
 
-simpleAI :: AI
-simpleAI = AI 0
-
+simpleItem :: Item
+simpleItem = Item {
+      _itemId = 0
+    , _itemType = Bed
+    , _itemMaterial = Iron
+    , _itemState = ItemPos (3,3,0) 
+}

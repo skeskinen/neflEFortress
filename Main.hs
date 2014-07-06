@@ -6,4 +6,3 @@ import CliUI
 
 main :: IO ()
 main = startUi newVtyUi
-
