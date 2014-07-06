@@ -6,7 +6,7 @@ import Control.Lens
 import Control.Monad.State
 import Control.Monad (when, (=<<))
 import Control.Applicative
-
+import Data.Foldable (foldMap)
 import Terrain
 
 type CreatureId = Int
@@ -16,12 +16,16 @@ data CreatureType =
   deriving (Enum, Eq)
 
 data Creature = Creature {
-      _creatureType :: CreatureType
+      _creatureName :: String
+    , _creatureType :: CreatureType
     , _creatureId   :: CreatureId
     , _creaturePos  :: (Int, Int, Int)
     , _creatureAct  :: Creature -> State World ()
     , _creatureAI   :: AI
 }
+
+nameGenerator :: String
+nameGenerator = "Uther"
 
 data AI = AI {
       _aiState :: Int
@@ -36,6 +40,17 @@ data World = World {
 makeLenses ''World
 makeLenses ''Creature
 makeLenses ''AI
+
+instance Show CreatureType where
+    show CreatureNefle = "Nefle"
+
+instance Show Creature where
+    show c = (c ^. creatureName) ++ ", " ++ show (c ^. creatureType) ++ " " ++ show (c ^. creaturePos) 
+
+instance Show World where
+    show w = show (w ^. worldTerrain) ++ showCreatures (w ^.. worldCreatures.traverse)
+      where
+        showCreatures = foldMap ((++"\n").show)
 
 creatureById :: CreatureId -> Lens' World (Maybe Creature)
 creatureById i = worldCreatures . at i

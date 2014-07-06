@@ -4,7 +4,9 @@ module Terrain where
 import qualified Data.Vector as V
 import qualified Data.IntSet as IS
 import Control.Applicative ((<$>))
+import Data.List.Split (chunksOf)
 import Control.Lens
+import Data.Vector.Lens
 import Data.Maybe (fromMaybe)
 
 data TileType = 
@@ -37,6 +39,14 @@ instance Show Tile where
     show t 
       | IS.null $ t ^. tileCreatures = show $ t ^. tileType
       | otherwise = "@"
+
+instance Show Terrain where
+    show t = concatMap ((++"\n").concatMap showPutLn) tileArray 
+      where 
+        showPutLn x = concatMap show x ++ "\n"
+        tileArray = (map (chunksOf (w)).chunksOf (w*h)) (t ^. terrainTiles.from vector)
+        w = (t ^. terrainWidth)
+        h = (t ^. terrainHeight)
 
 invalidTile :: Tile
 invalidTile = Tile {

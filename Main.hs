@@ -51,7 +51,8 @@ simpleAct creature = do
 
 simpleCreature :: Creature 
 simpleCreature = Creature {
-      _creatureType = CreatureNefle
+      _creatureName = nameGenerator
+    , _creatureType = CreatureNefle
     , _creatureId = 1
     , _creaturePos = (5, 5, 0)
     , _creatureAct = simpleAct
