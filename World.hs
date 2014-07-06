@@ -81,8 +81,11 @@ worldPhysics = do
             Nothing ->
                 return item
             
-    (worldCreatures .=) =<< traverse creaturePhys (world ^. worldCreatures) 
-    (worldItems .=) =<< traverse itemPhys (world ^. worldItems) 
+    newCreatures <- traverse creaturePhys (world ^. worldCreatures) 
+    worldCreatures .= newCreatures
+
+    newItems <- traverse itemPhys (world ^. worldItems) 
+    worldItems .= newItems
 
 stepWorld :: State World ()
 stepWorld = do

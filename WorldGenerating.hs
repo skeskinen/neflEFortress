@@ -2,12 +2,14 @@ module WorldGenerating where
 
 import World
 import Terrain
+import Item
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 import Control.Lens
 import Control.Monad.State
+
 
 simpleWorld :: World
 simpleWorld = 
