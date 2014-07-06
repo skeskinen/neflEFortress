@@ -27,6 +27,9 @@ data Terrain = Terrain {
     , _terrainTiles   :: V.Vector Tile
 }
 
+type Point = (Int, Int, Int)
+type Area = (Point, Point)
+
 makeLenses ''Tile
 makeLenses ''Terrain
 
@@ -54,19 +57,19 @@ invalidTile = Tile {
     , _tileType = TileInvalid
 }
 
-indexTerrain :: Terrain -> (Int, Int, Int) -> Int
+indexTerrain :: Terrain -> Point -> Int
 indexTerrain terrain (x, y, z) = x + y * w + z * w * h
   where
     w = view terrainWidth terrain
     h = view terrainHeight terrain
 
-getTerrainTile :: Terrain -> (Int, Int, Int) -> Tile
+getTerrainTile :: Terrain -> Point -> Tile
 getTerrainTile terrain pos = terrain ^? terrainTiles . ix (indexTerrain terrain pos) & fromMaybe invalidTile
 
-setTerrainTile :: Terrain -> (Int, Int, Int) -> Tile -> Terrain
+setTerrainTile :: Terrain -> Point -> Tile -> Terrain
 setTerrainTile terrain pos tile = terrain & terrainTiles . ix (indexTerrain terrain pos) .~ tile
 
 -- Note: not a real lens outside when passed invalid coordinates
-terrainTile :: (Int, Int, Int) -> Lens' Terrain Tile
+terrainTile :: Point -> Lens' Terrain Tile
 terrainTile pos f terrain = setTerrainTile terrain pos <$> f (getTerrainTile terrain pos)
 

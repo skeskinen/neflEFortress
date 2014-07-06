@@ -92,7 +92,7 @@ traverseM m f = m >>= mapMOf traverse f
 traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
 traverseM_ m f = traverseM m f >> return ()
 
-moveCreature :: MonadState World m => Creature -> (Int, Int, Int) -> m Creature
+moveCreature :: MonadState World m => Creature -> Point -> m Creature
 moveCreature creature pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
         if t == TileEmpty 
@@ -103,7 +103,7 @@ moveCreature creature pos = do
             return $ creature & creaturePos .~ pos
           else return creature
 
-moveCreatureById :: MonadState World m => CreatureId -> (Int, Int, Int) -> m ()
+moveCreatureById :: MonadState World m => CreatureId -> Point -> m ()
 moveCreatureById cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
         t <- use $ worldTerrain . terrainTile pos . tileType
         when (t == TileEmpty) $ do
