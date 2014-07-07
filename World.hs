@@ -16,41 +16,36 @@ data CreatureType =
     CreatureNefle
   deriving (Enum, Eq)
 
-data Creature = Creature {
+data Creature s = Creature {
       _creatureName  :: String
     , _creatureType  :: CreatureType
     , _creatureId    :: CreatureId
     , _creaturePos   :: (Int, Int, Int)
-    , _creatureAct   :: Creature -> State World ()
-    , _creatureAI    :: AI
+    , _creatureAct   :: Creature s -> State (World s) ()
+    , _creatureState :: s
     , _creatureItems :: [Item]
 }
 
 nameGenerator :: String
 nameGenerator = "Uther"
 
-data AI = AI {
-      _aiState :: Int
-}
-
-data World = World {
+data (World cs) = World {
       _worldTerrain   :: Terrain
-    , _worldCreatures :: IM.IntMap Creature
+    , _worldCreatures :: IM.IntMap (Creature cs)
     , _worldItems     :: IM.IntMap Item
     , _worldMaxId     :: Int
 }
 
 makeLenses ''World
 makeLenses ''Creature
-makeLenses ''AI
 
 instance Show CreatureType where
     show CreatureNefle = "Nefle"
 
-instance Show Creature where
+instance Show (Creature a) where
     show c = (c ^. creatureName) ++ ", " ++ show (c ^. creatureType) ++ " " ++ show (c ^. creaturePos) 
 
-instance Show World where
+instance Show (World cs) where
     show w = show (w ^. worldTerrain) 
             ++ showCreatures (w ^.. worldCreatures.traverse) 
             ++ showItems (w ^.. worldItems.traverse)
@@ -58,11 +53,10 @@ instance Show World where
         showCreatures = foldMap ((++"\n").show)
         showItems = foldMap ((++"\n").show)
 
-
-creatureById :: CreatureId -> Lens' World (Maybe Creature)
+creatureById :: CreatureId -> Lens' (World cs) (Maybe (Creature cs))
 creatureById i = worldCreatures . at i
 
-worldPhysics :: State World ()
+worldPhysics :: State (World cs) ()
 worldPhysics = do
     world <- get
     let phys objPos moveObj obj = do
@@ -83,13 +77,13 @@ worldPhysics = do
     newItems <- traverse (phys (itemState . _ItemPos) moveItem) (world ^. worldItems) 
     worldItems .= newItems
 
-stepWorld :: State World ()
+stepWorld :: State (World cs) ()
 stepWorld = do
     traverseM_ (use worldCreatures) (\creature -> (creature ^. creatureAct) creature)
 
     worldPhysics
 
-addCreature :: Creature -> World -> World
+addCreature :: Creature cs -> World cs -> World cs
 addCreature creature world =
     world & worldMaxId +~ 1
           & worldCreatures . at newId ?~ newCreature
@@ -98,7 +92,7 @@ addCreature creature world =
     newId = world ^. worldMaxId + 1 
     newCreature = creature & creatureId .~ newId
 
-addItem :: Item -> World -> World
+addItem :: Item -> World cs -> World cs
 addItem item world =
     world & worldMaxId +~ 1
           & worldItems . at newId ?~ newItem
@@ -110,7 +104,7 @@ addItem item world =
     newItem = item 
             & itemId .~ newId
 
-pickUpItemId :: MonadState World m => ItemId -> CreatureId -> m ()
+pickUpItemId :: MonadState (World cs) m => ItemId -> CreatureId -> m ()
 pickUpItemId itemid creatureid = do
     mitem <- use (worldItems . at itemid)
     mcreature <- use (worldCreatures . at creatureid)
@@ -123,7 +117,7 @@ pickUpItemId itemid creatureid = do
             worldCreatures . at creatureid . traverse . creatureItems %= (newItem :)
         Nothing -> return ()
 
-modifyCreature :: MonadState World m => CreatureId -> (Creature -> Creature) -> m ()
+modifyCreature :: MonadState (World cs) m => CreatureId -> (Creature cs -> Creature cs) -> m ()
 modifyCreature i f = creatureById i . traverse %= f
 
 traverseM :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m (t b)
@@ -132,7 +126,7 @@ traverseM m f = m >>= mapMOf traverse f
 traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
 traverseM_ m f = m >>= mapMOf_ traverse f
 
-moveCreature :: MonadState World m => Creature -> Point -> m (Creature, Bool)
+moveCreature :: MonadState (World cs) m => Creature s -> Point -> m (Creature s , Bool)
 moveCreature creature pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
         if tileCanWalk t
@@ -143,12 +137,7 @@ moveCreature creature pos = do
             return (creature & creaturePos .~ pos, True)
           else return (creature, False)
 
-moveCreatureById :: MonadState World m => CreatureId -> Point -> m ()
-moveCreatureById cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
-        (_, wasMoved) <- moveCreature creature pos
-        when wasMoved $ modifyCreature cid (creaturePos .~ pos)
-
-moveItem :: MonadState World m => Item -> Point -> m (Item, Bool)
+moveItem :: MonadState (World cs) m => Item -> Point -> m (Item, Bool)
 moveItem item pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
         if tileCanWalk t

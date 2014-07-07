@@ -9,9 +9,13 @@ import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 import Control.Lens
 import Control.Monad.State
+import AI
 
 
-simpleWorld :: World
+type World' = World AI
+type Creature' = Creature AI
+
+simpleWorld :: World'
 simpleWorld =  modifyWorld World {
       _worldTerrain = simpleTerrain
     , _worldCreatures = IM.empty
@@ -21,9 +25,10 @@ simpleWorld =  modifyWorld World {
   where
     modifyWorld world = world 
         & addCreature simpleCreature
-        & addItem simpleItem
+        & addItem (simpleItem (3, 3, 0))
+        & addItem (simpleItem (2, 6, 0))
 
-runSimpleWorld :: Int -> World
+runSimpleWorld :: Int -> World'
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
 
 simpleTerrain :: Terrain
@@ -35,11 +40,22 @@ simpleTerrain = modifyTerrain Terrain {
 }
   where
     modifyTerrain terrain = terrain
-        & terrainTile (5,4,0) . tileType .~ TileEmpty
         & terrainTile (5,4,1) . tileType .~ TileGround
-        & terrainTile (3,3,0) . tileType .~ TileEmpty
         & terrainTile (3,3,1) . tileType .~ TileGround
-    tiles = V.replicate 100 (tile TileGround) V.++ V.replicate 200 (tile TileWall)
+    tiles = tileFloor V.++ V.replicate 200 (tile TileWall)
+    tileFloor = makeLevel [
+          "##########"
+        , "#........#"
+        , "#........#"
+        , "#..+.....#"
+        , "#....+...#"
+        , "####...#.#"
+        , "#..#####.#"
+        , "#..#...#.#"
+        , "#....#...#"
+        , "##########"
+        ]
+    makeLevel = V.fromList . concatMap (map (tile . tileTypeFromChar))
     tile t = Tile {
           _tileCreatures = IS.empty
         , _tileItems = IS.empty
@@ -47,33 +63,28 @@ simpleTerrain = modifyTerrain Terrain {
     }
 
 simpleAI :: AI
-simpleAI = AI 0
+simpleAI = defaultAI
 
-simpleAct :: Creature -> State World ()
-simpleAct creature = do
-    let dir = creature ^. creatureAI . aiState
-    let coor = [_1, _2] !! (dir `mod` 2)
-    let diff = 2 * (dir `div` 2) - 1
-    let cid = creature ^. creatureId
-    moveCreatureById cid ((creature ^. creaturePos) & coor +~ diff) 
-    modifyCreature cid (creatureAI . aiState %~ (\i -> (i + 1) `mod` 4))
+simpleAct :: Creature' -> State World' ()
+simpleAct creature = do 
+    newCreature <- runAI creature
+    worldCreatures . at (creature ^. creatureId) . traverse .= newCreature 
 
-
-simpleCreature :: Creature 
+simpleCreature :: Creature' 
 simpleCreature = Creature {
       _creatureName = nameGenerator
     , _creatureType = CreatureNefle
     , _creatureId = 1
-    , _creaturePos = (5, 5, 0)
+    , _creaturePos = (5, 3, 0)
     , _creatureAct = simpleAct
-    , _creatureAI = simpleAI
+    , _creatureState = simpleAI
     , _creatureItems = []
 }
 
-simpleItem :: Item
-simpleItem = Item {
+simpleItem :: Point -> Item
+simpleItem pos = Item {
       _itemId = 0
     , _itemType = Bed
     , _itemMaterial = Iron
-    , _itemState = ItemPos (3,3,0) 
+    , _itemState = ItemPos pos
 }

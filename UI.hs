@@ -12,7 +12,7 @@ import Control.Lens
 type UI = StateT UiState IO 
 
 data UiState = UiState {
-    _uiWorld :: World
+    _uiWorld :: World'
 }
 
 makeLenses ''UiState

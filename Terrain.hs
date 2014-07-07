@@ -41,6 +41,13 @@ instance Show TileType where
     show TileGround  = "."
     show TileWall    = "#"
 
+tileTypeFromChar :: Char -> TileType
+tileTypeFromChar '%' = TileInvalid
+tileTypeFromChar '.' = TileGround
+tileTypeFromChar '#' = TileWall
+-- tileTypeFromChar '+' = TileEmpty
+tileTypeFromChar _   = TileEmpty
+
 instance Show Tile where
     show t 
       | (not . IS.null) $ t ^. tileCreatures = "@"
