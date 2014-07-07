@@ -19,7 +19,7 @@ data Tile = Tile {
       _tileCreatures :: IS.IntSet
     , _tileItems     :: IS.IntSet
     , _tileType      :: TileType
-}
+} deriving (Eq)
 
 data Terrain = Terrain { 
       _terrainWidth   :: Int
@@ -62,6 +62,12 @@ invalidTile = Tile {
 
 indexTerrain :: Terrain -> Point -> Int
 indexTerrain terrain (x, y, z) = x + y * w + z * w * h
+  where
+    w = view terrainWidth terrain
+    h = view terrainHeight terrain
+
+unindexTerrain :: Terrain -> Int -> Point
+unindexTerrain terrain i = ( i `mod` w,(i `mod` (w * h)) `div` w, i `div` (w * h))
   where
     w = view terrainWidth terrain
     h = view terrainHeight terrain
