@@ -13,6 +13,7 @@ data TileType =
       TileInvalid
     | TileEmpty
     | TileGround
+    | TileWall
     deriving (Enum, Eq)
 
 data Tile = Tile {
@@ -38,6 +39,7 @@ instance Show TileType where
     show TileInvalid = "%"
     show TileEmpty   = "+"
     show TileGround  = "."
+    show TileWall    = "#"
 
 instance Show Tile where
     show t 
@@ -49,9 +51,14 @@ instance Show Terrain where
     show t = concatMap ((++"\n").concatMap showPutLn) tileArray 
       where 
         showPutLn x = concatMap show x ++ "\n"
-        tileArray = (map (chunksOf (w)).chunksOf (w*h)) (t ^. terrainTiles.from vector)
-        w = (t ^. terrainWidth)
-        h = (t ^. terrainHeight)
+        tileArray = (map (chunksOf w).chunksOf (w*h)) (t ^. terrainTiles.from vector)
+        w = t ^. terrainWidth
+        h = t ^. terrainHeight
+
+tileCanWalk :: TileType -> Bool
+tileCanWalk TileEmpty  = True
+tileCanWalk TileGround = True
+tileCanWalk _          = False
 
 invalidTile :: Tile
 invalidTile = Tile {

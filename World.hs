@@ -4,7 +4,6 @@ module World where
 import qualified Data.IntMap as IM
 import Control.Lens
 import Control.Monad.State
-import Control.Monad (when, (=<<))
 import Control.Applicative
 import Data.Foldable (foldMap)
 
@@ -66,25 +65,22 @@ creatureById i = worldCreatures . at i
 worldPhysics :: State World ()
 worldPhysics = do
     world <- get
-    let creaturePhys creature = do
-        let newpos = creature ^. creaturePos & _3 +~ 1
-        if TileEmpty == world ^. worldTerrain . terrainTile newpos . tileType
-            then fst <$> moveCreature creature newpos
-            else return creature
-    let itemPhys item = do
-        let mnewpos = item ^? itemState . _ItemPos & traverse . _3 +~ 1
-        case mnewpos of
-            Just newpos ->
-                if TileEmpty == world ^. worldTerrain . terrainTile newpos . tileType
-                    then fst <$> moveItem item newpos
-                    else return item
-            Nothing ->
-                return item
+    let phys objPos moveObj obj = do
+        let mpos = obj ^? objPos
+        case mpos of
+            Just pos -> do
+                let newpos = pos & _3 +~ 1
+                let getTileType position = world ^. worldTerrain . terrainTile position . tileType
+                if TileEmpty == getTileType pos && TileWall /= getTileType newpos 
+                    then fst <$> moveObj obj newpos
+                    else return obj
+            Nothing -> 
+                return obj
             
-    newCreatures <- traverse creaturePhys (world ^. worldCreatures) 
+    newCreatures <- traverse (phys creaturePos moveCreature) (world ^. worldCreatures) 
     worldCreatures .= newCreatures
 
-    newItems <- traverse itemPhys (world ^. worldItems) 
+    newItems <- traverse (phys (itemState . _ItemPos) moveItem) (world ^. worldItems) 
     worldItems .= newItems
 
 stepWorld :: State World ()
@@ -120,7 +116,7 @@ pickUpItemId itemid creatureid = do
     mcreature <- use (worldCreatures . at creatureid)
 
     case (,) <$> mitem <*> mcreature of
-        Just (item, creature) -> do
+        Just (item, _) -> do
             forMOf_ (itemState . _ItemPos) item $ \pos -> worldTerrain . terrainTile pos . tileItems . contains itemid .= False
             let newItem = item & itemState .~ ItemHeldBy creatureid
             worldItems . at itemid .= Just newItem
@@ -139,12 +135,12 @@ traverseM_ m f = m >>= mapMOf_ traverse f
 moveCreature :: MonadState World m => Creature -> Point -> m (Creature, Bool)
 moveCreature creature pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
-        if t == TileEmpty 
+        if tileCanWalk t
           then do
             let cid = creature ^. creatureId
             worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
             worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
-            return $ (creature & creaturePos .~ pos, True)
+            return (creature & creaturePos .~ pos, True)
           else return (creature, False)
 
 moveCreatureById :: MonadState World m => CreatureId -> Point -> m ()
@@ -155,13 +151,13 @@ moveCreatureById cid pos = traverseM_ (use (creatureById cid)) $ \creature -> do
 moveItem :: MonadState World m => Item -> Point -> m (Item, Bool)
 moveItem item pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
-        if t == TileEmpty 
+        if tileCanWalk t
           then do
             let iid = item ^. itemId
             case item ^? itemState . _ItemPos of 
                 Just oldpos -> worldTerrain . terrainTile oldpos . tileItems . contains iid .= False
                 Nothing -> return ()
             worldTerrain . terrainTile pos . tileItems . contains iid .= True
-            return $ (item & itemState . _ItemPos .~ pos, True)
+            return (item & itemState . _ItemPos .~ pos, True)
           else return (item, False)
 

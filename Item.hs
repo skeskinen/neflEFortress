@@ -31,21 +31,10 @@ data Item = Item {
 }
 
 makeLenses ''Item
+makePrisms ''ItemState
 
 instance Show Item where 
     show item = itemDesc item ++ " " ++ show (item ^. itemState)
-
-_ItemPos :: Prism' ItemState (Int, Int, Int) 
-_ItemPos = prism' ItemPos f
-  where
-    f (ItemPos a) = Just a
-    f _ = Nothing
-
-_ItemHeldBy :: Prism' ItemState Int 
-_ItemHeldBy = prism' ItemHeldBy f
-  where
-    f (ItemHeldBy a) = Just a
-    f _ = Nothing
 
 materialDesc :: Material -> String
 materialDesc = desc

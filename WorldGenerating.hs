@@ -12,29 +12,34 @@ import Control.Monad.State
 
 
 simpleWorld :: World
-simpleWorld = 
-    addCreature simpleCreature $
-    addItem simpleItem $ World {
+simpleWorld =  modifyWorld World {
       _worldTerrain = simpleTerrain
     , _worldCreatures = IM.empty
     , _worldMaxId = 0
     , _worldItems = IM.empty
 }
+  where
+    modifyWorld world = world 
+        & addCreature simpleCreature
+        & addItem simpleItem
 
 runSimpleWorld :: Int -> World
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
 
 simpleTerrain :: Terrain
-simpleTerrain = modify Terrain {
+simpleTerrain = modifyTerrain Terrain {
       _terrainWidth = 10
     , _terrainHeight = 10
     , _terrainDepth = 3
     , _terrainTiles = tiles
 }
   where
-    modify terrain = terrain
-        & terrainTile (5,4,1) . tileType .~ TileEmpty
-    tiles = V.replicate 100 (tile TileEmpty) V.++ V.replicate 200 (tile TileGround)
+    modifyTerrain terrain = terrain
+        & terrainTile (5,4,0) . tileType .~ TileEmpty
+        & terrainTile (5,4,1) . tileType .~ TileGround
+        & terrainTile (3,3,0) . tileType .~ TileEmpty
+        & terrainTile (3,3,1) . tileType .~ TileGround
+    tiles = V.replicate 100 (tile TileGround) V.++ V.replicate 200 (tile TileWall)
     tile t = Tile {
           _tileCreatures = IS.empty
         , _tileItems = IS.empty
