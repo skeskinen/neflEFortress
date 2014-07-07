@@ -17,6 +17,7 @@ data TileType =
 
 data Tile = Tile {
       _tileCreatures :: IS.IntSet
+    , _tileItems     :: IS.IntSet
     , _tileType      :: TileType
 }
 
@@ -37,8 +38,9 @@ instance Show TileType where
 
 instance Show Tile where
     show t 
-      | IS.null $ t ^. tileCreatures = show $ t ^. tileType
-      | otherwise = "@"
+      | (not . IS.null) $ t ^. tileCreatures = "@"
+      | (not . IS.null) $ t ^. tileItems = "$"
+      | otherwise = show $ t ^. tileType
 
 instance Show Terrain where
     show t = concatMap ((++"\n").concatMap showPutLn) tileArray 
@@ -52,6 +54,7 @@ invalidTile :: Tile
 invalidTile = Tile {
       _tileCreatures = IS.empty
     , _tileType = TileInvalid
+    , _tileItems = IS.empty
 }
 
 indexTerrain :: Terrain -> (Int, Int, Int) -> Int
