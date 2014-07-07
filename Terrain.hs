@@ -62,8 +62,12 @@ instance Show Terrain where
         w = t ^. terrainWidth
         h = t ^. terrainHeight
 
+tileIsWall :: TileType -> Bool
+tileIsWall TileEmpty  = False
+tileIsWall TileGround = False
+tileIsWall _          = True
+
 tileCanWalk :: TileType -> Bool
-tileCanWalk TileEmpty  = True
 tileCanWalk TileGround = True
 tileCanWalk _          = False
 

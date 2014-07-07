@@ -28,6 +28,9 @@ simpleWorld =  modifyWorld World {
         & addItem (simpleItem (3, 3, 0))
         & addItem (simpleItem (2, 6, 0))
 
+findSimplePath :: Point -> Point -> Maybe [Dir]
+findSimplePath = findPath simpleTerrain
+
 runSimpleWorld :: Int -> World'
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
 
@@ -63,7 +66,9 @@ simpleTerrain = modifyTerrain Terrain {
     }
 
 simpleAI :: AI
-simpleAI = defaultAI
+simpleAI = defaultAI 
+            & aiPlan .~ PlanPickUpItem 3
+            & aiPlanState .~ PlanStarted
 
 simpleAct :: Creature' -> State World' ()
 simpleAct creature = do 
@@ -88,3 +93,4 @@ simpleItem pos = Item {
     , _itemMaterial = Iron
     , _itemState = ItemPos pos
 }
+

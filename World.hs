@@ -42,10 +42,10 @@ makeLenses ''Creature
 instance Show CreatureType where
     show CreatureNefle = "Nefle"
 
-instance Show (Creature a) where
-    show c = (c ^. creatureName) ++ ", " ++ show (c ^. creatureType) ++ " " ++ show (c ^. creaturePos) 
+instance (Show a) => Show (Creature a) where
+    show c = (c ^. creatureName) ++ ", " ++ show (c ^. creatureType) ++ " " ++ show (c ^. creaturePos) ++ " " ++ show (c ^. creatureState)
 
-instance Show (World cs) where
+instance (Show cs) => Show (World cs) where
     show w = show (w ^. worldTerrain) 
             ++ showCreatures (w ^.. worldCreatures.traverse) 
             ++ showItems (w ^.. worldItems.traverse)
@@ -103,19 +103,21 @@ addItem item world =
     newId = world ^. worldMaxId + 1 
     newItem = item 
             & itemId .~ newId
+            
+getItemPosId :: MonadState (World cs) m => ItemId -> m (Maybe Point)
+getItemPosId iid = use . pre $ worldItems . at iid . traverse . itemState . _ItemPos
 
-pickUpItemId :: MonadState (World cs) m => ItemId -> CreatureId -> m ()
-pickUpItemId itemid creatureid = do
+pickUpItemId :: MonadState (World cs) m => ItemId -> Creature cs -> m (Creature cs)
+pickUpItemId itemid creature = do
     mitem <- use (worldItems . at itemid)
-    mcreature <- use (worldCreatures . at creatureid)
-
-    case (,) <$> mitem <*> mcreature of
-        Just (item, _) -> do
+    case mitem of 
+        Just item -> do
             forMOf_ (itemState . _ItemPos) item $ \pos -> worldTerrain . terrainTile pos . tileItems . contains itemid .= False
-            let newItem = item & itemState .~ ItemHeldBy creatureid
+            let newItem = item & itemState .~ ItemHeldBy (creature ^. creatureId)
             worldItems . at itemid .= Just newItem
-            worldCreatures . at creatureid . traverse . creatureItems %= (newItem :)
-        Nothing -> return ()
+
+            return $ creature & creatureItems %~ (newItem :)
+        Nothing -> return creature
 
 modifyCreature :: MonadState (World cs) m => CreatureId -> (Creature cs -> Creature cs) -> m ()
 modifyCreature i f = creatureById i . traverse %= f
@@ -129,7 +131,7 @@ traverseM_ m f = m >>= mapMOf_ traverse f
 moveCreature :: MonadState (World cs) m => Creature s -> Point -> m (Creature s , Bool)
 moveCreature creature pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
-        if tileCanWalk t
+        if not (tileIsWall t)
           then do
             let cid = creature ^. creatureId
             worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
@@ -140,7 +142,7 @@ moveCreature creature pos = do
 moveItem :: MonadState (World cs) m => Item -> Point -> m (Item, Bool)
 moveItem item pos = do
         t <- use $ worldTerrain . terrainTile pos . tileType
-        if tileCanWalk t
+        if not (tileIsWall t)
           then do
             let iid = item ^. itemId
             case item ^? itemState . _ItemPos of 
