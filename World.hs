@@ -9,6 +9,7 @@ import Data.Foldable (foldMap)
 
 import Terrain
 import Item
+import Utils
 
 type CreatureId = Int
 
@@ -43,7 +44,10 @@ instance Show CreatureType where
     show CreatureNefle = "Nefle"
 
 instance (Show a) => Show (Creature a) where
-    show c = (c ^. creatureName) ++ ", " ++ show (c ^. creatureType) ++ " " ++ show (c ^. creaturePos) ++ " " ++ show (c ^. creatureState)
+    show c = (c ^. creatureName) ++ "; " ++ show (c ^. creatureType) ++ "; " 
+      ++ show (c ^. creaturePos) 
+      ++ "; Carried items: " ++ show (lengthOf (creatureItems . traverse) c) ++ ", " 
+      ++ show (c ^. creatureItems) ++ "; " ++ show (c ^. creatureState)
 
 instance (Show cs) => Show (World cs) where
     show w = show (w ^. worldTerrain) 

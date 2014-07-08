@@ -1,13 +1,13 @@
 module VtyUI where
 
-import World
-import UI
-
 import System.Exit ( exitSuccess )
 import Graphics.Vty
 import Graphics.Vty.Widgets.All
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.State
+
+import World
+import UI
 
 io :: IO a -> UI a
 io = liftIO

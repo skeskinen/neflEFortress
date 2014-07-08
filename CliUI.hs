@@ -1,13 +1,15 @@
 module CliUI where 
-import UI
-import World
-import Terrain
 
 import Control.Applicative hiding ((<|>))
 import Control.Lens
 import Text.ParserCombinators.Parsec 
 import System.Environment
 import Control.Monad
+
+import Utils
+import UI
+import World
+import Terrain
 
 newCliUi :: UI ()
 newCliUi = return ()

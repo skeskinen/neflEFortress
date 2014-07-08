@@ -9,6 +9,8 @@ import Control.Lens
 import Data.Vector.Lens
 import Data.Maybe (fromMaybe)
 
+import Utils
+
 data TileType = 
       TileInvalid
     | TileEmpty
@@ -28,9 +30,6 @@ data Terrain = Terrain {
     , _terrainDepth   :: Int
     , _terrainTiles   :: V.Vector Tile
 }
-
-type Point = (Int, Int, Int)
-type Area = (Point, Point)
 
 makeLenses ''Tile
 makeLenses ''Terrain

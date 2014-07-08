@@ -1,12 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-} 
 module Test.TerrainTests where
 
-import Terrain
 
 import Test.QuickCheck
 import Test.QuickCheck.All
 import Data.DeriveTH
-
 import qualified Data.Vector as V
 import qualified Data.IntSet as IS
 import Control.Applicative ((<$>))
@@ -15,6 +13,9 @@ import Control.Lens
 import Data.Vector.Lens
 import Data.Maybe (fromMaybe)
 import Control.Applicative
+
+import Terrain
+import Utils
 
 derive makeArbitrary ''TileType
 
@@ -40,6 +41,10 @@ randomTerrainPoint t = do
     y <- choose (0,t ^. terrainHeight - 1)
     z <- choose (0,t ^. terrainDepth - 1)
     return (x,y,z)
+
+validTerrainPoint :: Terrain -> Gen Point
+validTerrainPoint t = suchThat (randomTerrainPoint t) $ \p ->
+    (t ^. (terrainTile p) . tileType) `elem` [TileGround, TileEmpty]
 
 prop_inBounds terrain = forAll (randomTerrainPoint terrain) $ \p ->
     indexTerrain terrain p < V.length (terrain ^. terrainTiles)

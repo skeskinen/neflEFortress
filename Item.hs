@@ -3,6 +3,8 @@ module Item where
 
 import Control.Lens
 
+import Utils
+
 data Material =
       Wood
     | Iron
@@ -16,8 +18,9 @@ data ItemType =
 type ItemId = Int
 
 data ItemState = 
-      ItemPos (Int, Int, Int)
+      ItemPos Point
     | ItemHeldBy Int
+    deriving (Eq)
 
 instance Show ItemState where
     show (ItemPos a) = show a

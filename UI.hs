@@ -1,13 +1,14 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
 module UI where
 
+import Control.Monad.State
+import Control.Lens
+
+import Utils
 import Control.Lens
 import World
 import Terrain
 import WorldGenerating
-
-import Control.Monad.State
-import Control.Lens
 
 type UI = StateT UiState IO 
 

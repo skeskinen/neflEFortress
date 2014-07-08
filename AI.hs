@@ -9,6 +9,7 @@ import qualified Data.Vector as V
 import World
 import Item
 import Terrain
+import Utils
 
 data Plan = 
     PlanPickUpItem ItemId
