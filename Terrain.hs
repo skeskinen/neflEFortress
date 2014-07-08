@@ -16,6 +16,7 @@ data TileType =
     | TileEmpty
     | TileGround
     | TileWall
+    | TileStairs
     deriving (Enum, Eq)
 
 data Tile = Tile {
@@ -39,12 +40,14 @@ instance Show TileType where
     show TileEmpty   = "+"
     show TileGround  = "."
     show TileWall    = "#"
+    show TileStairs  = "x"
 
 tileTypeFromChar :: Char -> TileType
 tileTypeFromChar '%' = TileInvalid
 tileTypeFromChar '.' = TileGround
 tileTypeFromChar '#' = TileWall
 -- tileTypeFromChar '+' = TileEmpty
+tileTypeFromChar 'x' = TileStairs
 tileTypeFromChar _   = TileEmpty
 
 instance Show Tile where
@@ -62,13 +65,24 @@ instance Show Terrain where
         h = t ^. terrainHeight
 
 tileIsWall :: TileType -> Bool
-tileIsWall TileEmpty  = False
-tileIsWall TileGround = False
-tileIsWall _          = True
+tileIsWall TileInvalid = True
+tileIsWall TileWall    = True
+tileIsWall _           = False
 
 tileCanWalk :: TileType -> Bool
 tileCanWalk TileGround = True
+tileCanWalk TileStairs = True
 tileCanWalk _          = False
+
+canMoveDir :: Terrain -> Point -> Dir -> Bool
+canMoveDir terrain pos dir =
+    if dir == DTop || dir == DBottom 
+       then tileType1 == TileStairs && tileType2 == TileStairs
+       else tileCanWalk tileType2
+  where
+    tileType1 = terrain ^. terrainTile pos . tileType
+    tileType2 = terrain ^. terrainTile newPos . tileType
+    newPos = addDir dir pos
 
 invalidTile :: Tile
 invalidTile = Tile {
