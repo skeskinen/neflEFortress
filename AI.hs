@@ -28,17 +28,6 @@ data AIAction =
   | AIIdle 
   deriving Show
 
-data Dir = DUp | DLeft | DDown | DRight | DTop | DBottom
-    deriving (Enum, Bounded, Show)
-
-addDir :: Dir -> Point -> Point
-addDir DUp     = _2 -~ 1
-addDir DDown   = _2 +~ 1
-addDir DLeft   = _1 -~ 1
-addDir DRight  = _1 +~ 1
-addDir DTop    = _3 -~ 1
-addDir DBottom = _3 +~ 1
-
 data AI = AI {
       _aiPlan       :: Plan
     , _aiActionList :: [AIAction]
@@ -80,7 +69,7 @@ findPath terrain start end = visit (PQ.singleton $ Node start Nothing 0) noneVis
              Just (node@(Node pos _ cost), newPq) -> 
                 let 
                     canMove dir = Just True /= visited ^? ix (indexTerrain terrain newPos)
-                            && terrain ^. terrainTile newPos . tileType . to tileCanWalk
+                            && canMoveDir terrain pos dir
                       where newPos = addDir dir pos
                     newCost newPos = 1 + cost - distance pos end + distance newPos end
                     addNode dir curPq = 
@@ -89,22 +78,13 @@ findPath terrain start end = visit (PQ.singleton $ Node start Nothing 0) noneVis
                             else curPq
                       where newPos = addDir dir pos
                     
-                    updatePq = foldr addNode newPq [DLeft, DDown, DUp, DRight]
+                    updatePq = foldr addNode newPq [minBound .. maxBound]
 
                 in if pos == end 
                     then pointsToDirs $ map (^. nodePos) $ getPath (Just node) []
                     else visit updatePq (visited & ix (indexTerrain terrain pos) .~ True)
              Nothing -> Nothing
     noneVisited = V.replicate (terrain ^. terrainTiles . to V.length) False
-
-dirsToPoints :: [Dir] -> Point -> [Point]
-dirsToPoints dirs pos = foldl (\list@(prevPos : _) dir -> addDir dir prevPos : list) [pos] dirs
-
-pointsToDirs :: [Point] -> Maybe [Dir]
-pointsToDirs points = mapM getDir $ zip points (tail points)
-  where
-    getDir ((x1, y1, z1), (x2, y2, z2)) = lookup (x2-x1, y2-y1,z2-z1) $ 
-        map (\dir -> (addDir dir (0,0,0), dir)) [minBound .. maxBound]
 
 makeActions :: Creature AI -> State (World AI) AI
 makeActions creature = case ai ^. aiPlanState of
@@ -152,8 +132,7 @@ runAI creature = do
         (a:as) -> 
             case a of 
                 AIMove (dir:dirs) -> do
-                    let newPos = addDir dir (creature ^. creaturePos)
-                    (newCreature, wasMoved) <- moveCreature creature newPos
+                    (newCreature, wasMoved) <- moveCreatureDir creature dir
                     let newActions = if wasMoved 
                                         then AIMove dirs : as
                                         else []

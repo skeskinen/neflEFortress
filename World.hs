@@ -4,7 +4,6 @@ module World where
 import qualified Data.IntMap as IM
 import Control.Lens
 import Control.Monad.State
-import Control.Applicative
 import Data.Foldable (foldMap)
 
 import Terrain
@@ -70,7 +69,7 @@ worldPhysics = do
                 let newpos = pos & _3 +~ 1
                 let getTileType position = world ^. worldTerrain . terrainTile position . tileType
                 if TileEmpty == getTileType pos && TileWall /= getTileType newpos 
-                    then fst <$> moveObj obj newpos
+                    then moveObj obj newpos
                     else return obj
             Nothing -> 
                 return obj
@@ -132,26 +131,29 @@ traverseM m f = m >>= mapMOf traverse f
 traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
 traverseM_ m f = m >>= mapMOf_ traverse f
 
-moveCreature :: MonadState (World cs) m => Creature s -> Point -> m (Creature s , Bool)
-moveCreature creature pos = do
-        t <- use $ worldTerrain . terrainTile pos . tileType
-        if not (tileIsWall t)
-          then do
-            let cid = creature ^. creatureId
-            worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
-            worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
-            return (creature & creaturePos .~ pos, True)
-          else return (creature, False)
+moveCreatureDir :: MonadState (World cs) m => Creature cs -> Dir -> m (Creature cs, Bool)
+moveCreatureDir creature dir = do
+    terrain <- use worldTerrain
+    if canMoveDir terrain (creature ^. creaturePos) dir
+      then do
+        let pos = addDir dir (creature ^. creaturePos)
+        newCreature <- moveCreature creature pos
+        return (newCreature, True)
+      else return (creature, False)
 
-moveItem :: MonadState (World cs) m => Item -> Point -> m (Item, Bool)
+moveCreature :: MonadState (World cs) m => Creature cs -> Point -> m (Creature cs)
+moveCreature creature pos = do
+    let cid = creature ^. creatureId
+    worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
+    worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
+    return $ creature & creaturePos .~ pos
+
+moveItem :: MonadState (World cs) m => Item -> Point -> m Item
 moveItem item pos = do
-        t <- use $ worldTerrain . terrainTile pos . tileType
-        if not (tileIsWall t)
-          then do
-            let iid = item ^. itemId
-            case item ^? itemState . _ItemPos of 
-                Just oldpos -> worldTerrain . terrainTile oldpos . tileItems . contains iid .= False
-                Nothing -> return ()
-            worldTerrain . terrainTile pos . tileItems . contains iid .= True
-            return (item & itemState . _ItemPos .~ pos, True)
-          else return (item, False)
+    let iid = item ^. itemId
+    case item ^? itemState . _ItemPos of 
+        Just oldpos -> worldTerrain . terrainTile oldpos . tileItems . contains iid .= False
+        Nothing -> return ()
+    worldTerrain . terrainTile pos . tileItems . contains iid .= True
+    return $ item & itemState . _ItemPos .~ pos
+

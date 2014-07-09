@@ -27,6 +27,8 @@ simpleWorld =  modifyWorld World {
         & addCreature simpleCreature
         & addItem (simpleItem (3, 3, 0))
         & addItem (simpleItem (2, 6, 0))
+        & addItem (simpleItem (8, 1, 1))
+        & addItem (simpleItem (1, 1, 1))
 
 findSimplePath :: Point -> Point -> Maybe [Dir]
 findSimplePath = findPath simpleTerrain
@@ -43,19 +45,29 @@ simpleTerrain = modifyTerrain Terrain {
 }
   where
     modifyTerrain terrain = terrain
-        & terrainTile (5,4,1) . tileType .~ TileGround
-        & terrainTile (3,3,1) . tileType .~ TileGround
-    tiles = tileFloor V.++ V.replicate 200 (tile TileWall)
-    tileFloor = makeLevel [
+    tiles = tileFloor1 V.++ tileFloor2 V.++ V.replicate 100 (tile TileWall)
+    tileFloor1 = makeLevel [
           "##########"
         , "#........#"
         , "#........#"
         , "#..+.....#"
         , "#....+...#"
-        , "####...#.#"
+        , "####...#x#"
         , "#..#####.#"
         , "#..#...#.#"
         , "#....#...#"
+        , "##########"
+        ]
+    tileFloor2 = makeLevel [
+          "##########"
+        , "#......#.#"
+        , "#......#.#"
+        , "#......#.#"
+        , "#......#.#"
+        , "####...#x#"
+        , "#..#####.#"
+        , "#..#...#.#"
+        , "#....#.#.#"
         , "##########"
         ]
     makeLevel = V.fromList . concatMap (map (tile . tileTypeFromChar))
@@ -67,7 +79,7 @@ simpleTerrain = modifyTerrain Terrain {
 
 simpleAI :: AI
 simpleAI = defaultAI 
-            & aiPlan .~ PlanPickUpItem 3
+            & aiPlan .~ PlanPickUpItem 4
             & aiPlanState .~ PlanStarted
 
 simpleAct :: Creature' -> State World' ()
