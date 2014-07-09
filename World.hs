@@ -4,7 +4,7 @@ module World where
 import qualified Data.IntMap as IM
 import Control.Lens
 import Control.Monad.State
-import Data.Foldable (foldMap)
+import Data.Foldable (foldMap, for_)
 
 import Terrain
 import Item
@@ -68,7 +68,7 @@ worldPhysics = do
             Just pos -> do
                 let newpos = pos & _3 +~ 1
                 let getTileType position = world ^. worldTerrain . terrainTile position . tileType
-                if TileEmpty == getTileType pos && TileWall /= getTileType newpos 
+                if TileEmpty == getTileType pos && not (tileIsWall (getTileType newpos))
                     then moveObj obj newpos
                     else return obj
             Nothing -> 
@@ -82,7 +82,9 @@ worldPhysics = do
 
 stepWorld :: State (World cs) ()
 stepWorld = do
-    traverseM_ (use worldCreatures) (\creature -> (creature ^. creatureAct) creature)
+    creatures <- use worldCreatures
+    for_ creatures $ \creature -> 
+        (creature ^. creatureAct) creature
 
     worldPhysics
 
@@ -117,19 +119,10 @@ pickUpItemId itemid creature = do
         Just item -> do
             forMOf_ (itemState . _ItemPos) item $ \pos -> worldTerrain . terrainTile pos . tileItems . contains itemid .= False
             let newItem = item & itemState .~ ItemHeldBy (creature ^. creatureId)
-            worldItems . at itemid .= Just newItem
+            worldItems . at itemid ?= newItem
 
             return $ creature & creatureItems %~ (newItem :)
         Nothing -> return creature
-
-modifyCreature :: MonadState (World cs) m => CreatureId -> (Creature cs -> Creature cs) -> m ()
-modifyCreature i f = creatureById i . traverse %= f
-
-traverseM :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m (t b)
-traverseM m f = m >>= mapMOf traverse f
-
-traverseM_ :: (Traversable t, Monad m) => m (t a) -> (a -> m b) -> m ()
-traverseM_ m f = m >>= mapMOf_ traverse f
 
 moveCreatureDir :: MonadState (World cs) m => Creature cs -> Dir -> m (Creature cs, Bool)
 moveCreatureDir creature dir = do

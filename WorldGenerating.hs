@@ -45,7 +45,7 @@ simpleTerrain = modifyTerrain Terrain {
 }
   where
     modifyTerrain terrain = terrain
-    tiles = tileFloor1 V.++ tileFloor2 V.++ V.replicate 100 (tile TileWall)
+    tiles = tileFloor1 V.++ tileFloor2 V.++ V.replicate 100 (tile $ TileWall 3)
     tileFloor1 = makeLevel [
           "##########"
         , "#........#"
@@ -79,7 +79,8 @@ simpleTerrain = modifyTerrain Terrain {
 
 simpleAI :: AI
 simpleAI = defaultAI 
-            & aiPlan .~ PlanPickUpItem 4
+--            & aiPlan .~ PlanPickUpItem 4
+            & aiPlan .~ PlanDig (7, 3, 1)
             & aiPlanState .~ PlanStarted
 
 simpleAct :: Creature' -> State World' ()

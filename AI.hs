@@ -1,8 +1,10 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types #-}
 module AI where
 
+import Control.Applicative
 import Control.Lens
 import Control.Monad.State
+import Data.Foldable (asum)
 import qualified Data.PQueue.Min as PQ
 import qualified Data.Vector as V
 
@@ -14,6 +16,7 @@ import Utils
 data Plan = 
     PlanPickUpItem ItemId
   | PlanMoveTo Point
+  | PlanDig Point
   | PlanIdle
   deriving Show
 
@@ -25,6 +28,7 @@ data PlanState =
 data AIAction = 
     AIPickUpItem ItemId
   | AIMove [Dir]
+  | AIDig Dir
   | AIIdle 
   deriving Show
 
@@ -113,6 +117,24 @@ makeActions creature = case ai ^. aiPlanState of
                                 & aiActionList .~ [AIMove path]
                                 & aiPlanState .~ PlanStarted
                  Nothing -> doNothing
+        PlanDig point -> do
+            terrain <- use worldTerrain
+            case terrain ^. terrainTile point . tileType of
+                TileWall _ -> do
+                    let tryDigging dir = do
+                        let digPos = addDir dir point
+                        if tileIsWall (terrain ^. terrainTile digPos . tileType)
+                            then Nothing
+                            else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
+                                findPath terrain (creature ^. creaturePos) digPos
+
+                    let mactions = asum $ map tryDigging [DUp, DDown, DRight, DLeft]
+                    case mactions of
+                        Just actions -> return $ ai
+                                            & aiActionList .~ actions
+                                            & aiPlanState .~ PlanStarted
+                        Nothing -> doNothing
+                _ -> doNothing
             
     PlanFinished -> return $ ai 
                             & aiPlan .~ PlanIdle
@@ -148,5 +170,15 @@ runAI creature = do
                                 else 
                                    return $ setActionList as creature
                         Nothing -> return $ setActionList as creature
+                AIDig dir -> do
+                    let dig tile = case tile of
+                            TileWall i -> if i > 0
+                                             then TileWall (i - 1)
+                                             else TileGround
+                            t -> t
+                    tile <- worldTerrain . terrainTile (addDir dir (creature ^. creaturePos)) . tileType <%= dig
+                    case tile of 
+                         TileWall _ -> return creature
+                         _ -> return $ setActionList as creature
                 _ -> return $ setActionList as creature
 

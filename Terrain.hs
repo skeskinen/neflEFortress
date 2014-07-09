@@ -3,7 +3,6 @@ module Terrain where
 
 import qualified Data.Vector as V
 import qualified Data.IntSet as IS
-import Control.Applicative ((<$>))
 import Data.List.Split (chunksOf)
 import Control.Lens
 import Data.Vector.Lens
@@ -15,15 +14,15 @@ data TileType =
       TileInvalid
     | TileEmpty
     | TileGround
-    | TileWall
+    | TileWall Int
     | TileStairs
-    deriving (Enum, Eq)
+    deriving Eq
 
 data Tile = Tile {
       _tileCreatures :: IS.IntSet
     , _tileItems     :: IS.IntSet
     , _tileType      :: TileType
-} deriving (Eq)
+} deriving Eq
 
 data Terrain = Terrain { 
       _terrainWidth   :: Int
@@ -36,16 +35,16 @@ makeLenses ''Tile
 makeLenses ''Terrain
 
 instance Show TileType where
-    show TileInvalid = "%"
-    show TileEmpty   = "+"
-    show TileGround  = "."
-    show TileWall    = "#"
-    show TileStairs  = "x"
+    show TileInvalid  = "%"
+    show TileEmpty    = "+"
+    show TileGround   = "."
+    show (TileWall _) = "#"
+    show TileStairs   = "x"
 
 tileTypeFromChar :: Char -> TileType
 tileTypeFromChar '%' = TileInvalid
 tileTypeFromChar '.' = TileGround
-tileTypeFromChar '#' = TileWall
+tileTypeFromChar '#' = TileWall 3
 -- tileTypeFromChar '+' = TileEmpty
 tileTypeFromChar 'x' = TileStairs
 tileTypeFromChar _   = TileEmpty
@@ -65,9 +64,9 @@ instance Show Terrain where
         h = t ^. terrainHeight
 
 tileIsWall :: TileType -> Bool
-tileIsWall TileInvalid = True
-tileIsWall TileWall    = True
-tileIsWall _           = False
+tileIsWall TileInvalid  = True
+tileIsWall (TileWall _) = True
+tileIsWall _            = False
 
 tileCanWalk :: TileType -> Bool
 tileCanWalk TileGround = True
@@ -103,15 +102,15 @@ unindexTerrain terrain i = ( i `mod` w,(i `mod` (w * h)) `div` w, i `div` (w * h
     w = view terrainWidth terrain
     h = view terrainHeight terrain
 
-getTerrainTile :: Terrain -> Point -> Tile
-getTerrainTile terrain pos = terrain ^? terrainTiles . ix (indexTerrain terrain pos) & fromMaybe invalidTile
+getTerrainTile :: Point -> Terrain -> Tile
+getTerrainTile pos terrain = terrain ^? terrainTiles . ix (indexTerrain terrain pos) & fromMaybe invalidTile
 
-setTerrainTile :: Terrain -> Point -> Tile -> Terrain
-setTerrainTile terrain pos tile = terrain & terrainTiles . ix (indexTerrain terrain pos) .~ tile
+setTerrainTile :: Point -> Terrain -> Tile -> Terrain
+setTerrainTile pos terrain tile = terrain & terrainTiles . ix (indexTerrain terrain pos) .~ tile
 
 -- Note: not a real lens outside when passed invalid coordinates
 terrainTile :: Point -> Lens' Terrain Tile
-terrainTile pos f terrain = setTerrainTile terrain pos <$> f (getTerrainTile terrain pos)
+terrainTile pos = lens (getTerrainTile pos) (setTerrainTile pos)
 
 getFloor :: Terrain -> Int -> Terrain
 getFloor t i = Terrain w h 1 (V.slice start length (t ^. terrainTiles))

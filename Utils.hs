@@ -7,6 +7,15 @@ type Area = (Point, Point)
 data Dir = DUp | DLeft | DDown | DRight | DTop | DBottom
     deriving (Enum, Eq, Bounded, Show)
 
+reverseDir :: Dir -> Dir
+reverseDir DUp     = DDown
+reverseDir DDown   = DUp
+reverseDir DLeft   = DRight
+reverseDir DRight  = DLeft
+reverseDir DTop    = DBottom
+reverseDir DBottom = DTop
+
+
 addDir :: Dir -> Point -> Point
 addDir DUp     = _2 -~ 1
 addDir DDown   = _2 +~ 1
