@@ -5,4 +5,4 @@ import VtyUI
 import CliUI
 
 main :: IO ()
-main = startUi newVtyUi
+main = startUi newCliUi

@@ -99,3 +99,12 @@ setTerrainTile terrain pos tile = terrain & terrainTiles . ix (indexTerrain terr
 terrainTile :: Point -> Lens' Terrain Tile
 terrainTile pos f terrain = setTerrainTile terrain pos <$> f (getTerrainTile terrain pos)
 
+getFloor :: Terrain -> Int -> Terrain
+getFloor t i = Terrain w h 1 (V.slice start length (t ^. terrainTiles))
+  where
+    w = view terrainWidth t
+    h = view terrainHeight t
+    length = w*h
+    start = length*i
+
+    

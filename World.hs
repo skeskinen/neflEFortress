@@ -155,4 +155,3 @@ moveItem item pos = do
             worldTerrain . terrainTile pos . tileItems . contains iid .= True
             return (item & itemState . _ItemPos .~ pos, True)
           else return (item, False)
-

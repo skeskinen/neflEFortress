@@ -13,7 +13,9 @@ import WorldGenerating
 type UI = StateT UiState IO 
 
 data UiState = UiState {
-    _uiWorld :: World'
+    _uiWorld :: World',
+    _uiCamera :: Point,
+    _uiQuit :: Bool
 }
 
 makeLenses ''UiState
@@ -25,7 +27,9 @@ startUi ui = do
 
 simpleUiState :: UiState
 simpleUiState = UiState {
-      _uiWorld = simpleWorld
+      _uiWorld = simpleWorld,
+      _uiCamera = (0,0,0),
+      _uiQuit = False
 }
 
 data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area
@@ -39,13 +43,8 @@ data Command = Command {
 
 makeLenses ''Command
 
-type NoTarget = UI ()
-type Targeted a = a -> UI ()
-type AreaTarget = Targeted Area
-type PointTarget = Targeted Point
-
 noTargetCommands :: [Command]
-noTargetCommands = [genWorld, advanceTurn]
+noTargetCommands = [quit, genWorld, advanceTurn, descendCamera, ascendCamera]
 
 areaCommands :: [Command]
 areaCommands = [dig]
@@ -53,21 +52,35 @@ areaCommands = [dig]
 pointCommands :: [Command]
 pointCommands = [move]
 
-createCommand :: String -> CommandFunction -> Command 
-createCommand name f = Command name "" f
+cameraBounds :: UI ()
+cameraBounds = return ()
+
+quit :: Command 
+quit = Command "quit" "" $ \_ ->
+    uiQuit .= True
+    
+descendCamera :: Command 
+descendCamera = Command "descendCamera" "" $ \_ ->
+    (uiCamera . _3) += 1 >> cameraBounds
+
+ascendCamera :: Command
+ascendCamera = Command "ascendCamera" "" $ \_ ->
+    (uiCamera . _3) += (-1) >> cameraBounds
 
 dig :: Command 
-dig = createCommand "dig" $ \a -> do
+dig = Command "dig" "" $ \a -> do
     return ()
 
 move :: Command
-move = createCommand "move" $ \p -> do
+move = Command "move" "" $ \p -> do
     return ()
 
 genWorld :: Command
-genWorld = createCommand "genWorld" $ \_ -> do
-    return ()
+genWorld = Command "genWorld" "" $ \_ -> do
+    uiWorld .= simpleWorld
 
 advanceTurn :: Command
-advanceTurn = createCommand "advanceTurn" $ \_ -> do
-    return ()
+advanceTurn = Command "advanceTurn" "" $ \_ -> do
+    return () -- WTF?
+    --uiWorld .= (execState (use uiWorld) stepWorld) --Nope
+    --zoom uiWorld stepWorld --No ei ainakaan nain

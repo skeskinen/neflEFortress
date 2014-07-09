@@ -5,14 +5,43 @@ import Control.Lens
 import Text.ParserCombinators.Parsec 
 import System.Environment
 import Control.Monad
+import Control.Monad.State
+import System.IO
 
 import Utils
 import UI
 import World
 import Terrain
 
+cliClear :: UI ()
+cliClear = liftIO $ putStr "\ESC[2J"
+
+cliDraw :: UI ()
+cliDraw = do
+    cliClear
+    t <- use (uiWorld . worldTerrain)
+    f <- use (uiCamera . _3)
+    let floor = getFloor t f
+    liftIO $ print floor
+    liftIO $ putStr "> "
+    liftIO $ hFlush stdout
+
+cliEval :: UI ()
+cliEval = do
+    str <- liftIO $ getLine
+    let r = parse parseExpr "Input" str
+    case r of
+         Left err -> return ()
+         Right (com, arg) -> (com ^. commandFunction) arg
+
+until_ :: Monad m => m Bool -> m () -> m ()
+until_ pred action = do
+    action
+    c <- pred
+    if c then until_ pred action else return ()
+
 newCliUi :: UI ()
-newCliUi = return ()
+newCliUi = until_ (not <$> use uiQuit) (cliDraw >> cliEval)
 
 spaces1 :: Parser ()
 spaces1 = skipMany1 space
@@ -20,12 +49,11 @@ spaces1 = skipMany1 space
 separator :: Parser ()
 separator = spaces >> char ',' >> spaces  
 
-parseExpr :: Parser ()
+parseExpr :: CommandParser
 parseExpr = do
     choice genNoTargetCommandParsers
       <|> choice genPointCommandParsers
       <|> choice genAreaCommandParsers
-    return ()
 
 for = flip map
 
