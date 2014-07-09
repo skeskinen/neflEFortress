@@ -5,13 +5,12 @@ import Control.Applicative
 import Control.Lens
 import Control.Monad.State
 import Data.Foldable (asum)
-import qualified Data.PQueue.Min as PQ
-import qualified Data.Vector as V
 
 import World
 import Item
 import Terrain
 import Utils
+import PathFinding
 
 data Plan = 
     PlanPickUpItem ItemId
@@ -38,20 +37,9 @@ data AI = AI {
     , _aiPlanState  :: PlanState
 } deriving Show
 
-data Node = Node {
-      _nodePos :: !Point
-    , _nodeFrom :: !(Maybe Node)
-    , _nodeCost :: !Int
-} deriving (Eq, Show)
-    
-
 makeLenses ''AI
-makeLenses ''Node
 makePrisms ''Plan
 makePrisms ''AIAction
-
-instance Ord Node where
-    a <= b = a ^. nodeCost <= b ^. nodeCost
 
 defaultAI :: AI
 defaultAI = AI {
@@ -60,35 +48,18 @@ defaultAI = AI {
     , _aiPlanState = PlanFinished
 }
 
-findPath :: Terrain -> Point -> Point -> Maybe [Dir]
-findPath terrain start end = visit (PQ.singleton $ Node start Nothing 0) noneVisited
-  where
-    distance (x1, y1, z1) (x2, y2, z2) = abs (x1 - x2) + abs (y1 - y2) + abs (z1 - z2)
-
-    getPath (Just node) path = getPath (node ^. nodeFrom) (node : path)
-    getPath Nothing path = path
-
-    visit pq visited = 
-        case PQ.minView pq of
-             Just (node@(Node pos _ cost), newPq) -> 
-                let 
-                    canMove dir = Just True /= visited ^? ix (indexTerrain terrain newPos)
-                            && canMoveDir terrain pos dir
-                      where newPos = addDir dir pos
-                    newCost newPos = 1 + cost - distance pos end + distance newPos end
-                    addNode dir curPq = 
-                        if canMove dir 
-                            then Node newPos (Just node) (newCost newPos) `PQ.insert` curPq
-                            else curPq
-                      where newPos = addDir dir pos
-                    
-                    updatePq = foldr addNode newPq [minBound .. maxBound]
-
-                in if pos == end 
-                    then pointsToDirs $ map (^. nodePos) $ getPath (Just node) []
-                    else visit updatePq (visited & ix (indexTerrain terrain pos) .~ True)
-             Nothing -> Nothing
-    noneVisited = V.replicate (terrain ^. terrainTiles . to V.length) False
+tryDig :: Creature AI -> Terrain -> Point -> Maybe [AIAction]
+tryDig creature terrain point = 
+    case terrain ^. terrainTile point . tileType of
+        TileWall _ -> do
+            let tryDigging dir = do
+                let digPos = addDir dir point
+                if tileIsWall (terrain ^. terrainTile digPos . tileType)
+                    then Nothing
+                    else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
+                            findPath terrain (creature ^. creaturePos) digPos
+            asum $ map tryDigging [DUp, DDown, DRight, DLeft]
+        _ -> Nothing
 
 makeActions :: Creature AI -> State (World AI) AI
 makeActions creature = case ai ^. aiPlanState of
@@ -119,30 +90,32 @@ makeActions creature = case ai ^. aiPlanState of
                  Nothing -> doNothing
         PlanDig point -> do
             terrain <- use worldTerrain
-            case terrain ^. terrainTile point . tileType of
-                TileWall _ -> do
-                    let tryDigging dir = do
-                        let digPos = addDir dir point
-                        if tileIsWall (terrain ^. terrainTile digPos . tileType)
-                            then Nothing
-                            else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
-                                findPath terrain (creature ^. creaturePos) digPos
-
-                    let mactions = asum $ map tryDigging [DUp, DDown, DRight, DLeft]
-                    case mactions of
-                        Just actions -> return $ ai
-                                            & aiActionList .~ actions
-                                            & aiPlanState .~ PlanStarted
-                        Nothing -> doNothing
-                _ -> doNothing
+            let mactions = tryDig creature terrain point
+            case mactions of
+                Just actions -> return $ 
+                    ai  & aiActionList .~ actions
+                        & aiPlanState .~ PlanStarted
+                Nothing -> doNothing
             
-    PlanFinished -> return $ ai 
-                            & aiPlan .~ PlanIdle
-                            & aiPlanState .~ PlanStarted
+    PlanFinished -> do 
+        jobs <- use worldJobs
+        case jobs of
+            [] -> idle
+            (job:_) -> case job of
+                JobDig area -> do
+                    terrain <- use worldTerrain
+                    let points = areaPoints area
+                    case asum $ map (tryDig creature terrain) points of
+                         Just actions -> return $
+                                            ai & aiActionList .~ actions
+                                               & aiPlanState .~ PlanStarted 
+                         Nothing -> idle
   where
     ai = creature ^. creatureState
-    doNothing = return $ ai
-                        & aiPlanState .~ PlanFinished
+    doNothing = return $ ai & aiPlanState .~ PlanFinished
+    idle = return $
+                ai & aiPlan .~ PlanIdle
+                   & aiPlanState .~ PlanStarted
 
 runAI :: Creature AI -> State (World AI) (Creature AI)
 runAI creature = do

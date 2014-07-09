@@ -4,6 +4,13 @@ import Control.Lens
 type Point = (Int, Int, Int)
 type Area = (Point, Point)
 
+areaPoints :: Area -> [Point]
+areaPoints ((x1, y1, z1), (x2, y2, z2)) = 
+    [(x, y, z) | 
+        x <- [x1..x2]
+      , y <- [y1..y2]
+      , z <- [z1..z2]]
+
 data Dir = DUp | DLeft | DDown | DRight | DTop | DBottom
     deriving (Enum, Eq, Bounded, Show)
 

@@ -2,6 +2,7 @@
 module World where
 
 import qualified Data.IntMap as IM
+import Control.Applicative ((<$>))
 import Control.Lens
 import Control.Monad.State
 import Data.Foldable (foldMap, for_)
@@ -34,7 +35,10 @@ data (World cs) = World {
     , _worldCreatures :: IM.IntMap (Creature cs)
     , _worldItems     :: IM.IntMap Item
     , _worldMaxId     :: Int
+    , _worldJobs      :: [Job]
 }
+
+data Job = JobDig Area
 
 makeLenses ''World
 makeLenses ''Creature
@@ -48,13 +52,17 @@ instance (Show a) => Show (Creature a) where
       ++ "; Carried items: " ++ show (lengthOf (creatureItems . traverse) c) ++ ", " 
       ++ show (c ^. creatureItems) ++ "; " ++ show (c ^. creatureState)
 
+instance Show Job where
+    show (JobDig area) = "Dig area " ++ show area
+
 instance (Show cs) => Show (World cs) where
     show w = show (w ^. worldTerrain) 
-            ++ showCreatures (w ^.. worldCreatures.traverse) 
-            ++ showItems (w ^.. worldItems.traverse)
+            ++ showObjs (w ^.. worldCreatures.traverse) 
+            ++ showObjs (w ^.. worldItems.traverse)
+            ++ showObjs (w ^.. worldJobs.traverse)
       where
-        showCreatures = foldMap ((++"\n").show)
-        showItems = foldMap ((++"\n").show)
+        showObjs :: Show a => [a] -> String
+        showObjs = foldMap ((++"\n").show)
 
 creatureById :: CreatureId -> Lens' (World cs) (Maybe (Creature cs))
 creatureById i = worldCreatures . at i
@@ -80,12 +88,24 @@ worldPhysics = do
     newItems <- traverse (phys (itemState . _ItemPos) moveItem) (world ^. worldItems) 
     worldItems .= newItems
 
+jobFinished :: Job -> State (World cs) Bool
+jobFinished (JobDig area) = do
+    terrain <- use worldTerrain
+    return . and $ map (\pos -> not . tileIsWall $ terrain ^. terrainTile pos . tileType) (areaPoints area)
+
+checkJobs :: State (World cs) ()
+checkJobs = do
+    jobs <- use worldJobs
+    newJobs <- filterM (\job -> not <$> jobFinished job) jobs
+    worldJobs .= newJobs
+
 stepWorld :: State (World cs) ()
 stepWorld = do
     creatures <- use worldCreatures
     for_ creatures $ \creature -> 
         (creature ^. creatureAct) creature
 
+    checkJobs
     worldPhysics
 
 addCreature :: Creature cs -> World cs -> World cs

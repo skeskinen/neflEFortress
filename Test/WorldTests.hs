@@ -24,7 +24,7 @@ derive makeArbitrary ''Material
 derive makeArbitrary ''ItemType
 
 instance Arbitrary World' where
-    arbitrary = World <$> arbitrary <*> pure IM.empty <*> pure IM.empty <*> pure 0
+    arbitrary = World <$> arbitrary <*> pure IM.empty <*> pure IM.empty <*> pure 0 <*> pure []
 
 arbitraryCreature :: Point -> Gen Creature'
 arbitraryCreature p = Creature <$> arbitrary <*> arbitrary <*> pure (-1)

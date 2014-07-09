@@ -21,6 +21,7 @@ simpleWorld =  modifyWorld World {
     , _worldCreatures = IM.empty
     , _worldMaxId = 0
     , _worldItems = IM.empty
+    , _worldJobs = [JobDig ((6, 1, 1), (7, 5, 1))]
 }
   where
     modifyWorld world = world 
@@ -29,9 +30,6 @@ simpleWorld =  modifyWorld World {
         & addItem (simpleItem (2, 6, 0))
         & addItem (simpleItem (8, 1, 1))
         & addItem (simpleItem (1, 1, 1))
-
-findSimplePath :: Point -> Point -> Maybe [Dir]
-findSimplePath = findPath simpleTerrain
 
 runSimpleWorld :: Int -> World'
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
@@ -60,11 +58,11 @@ simpleTerrain = modifyTerrain Terrain {
         ]
     tileFloor2 = makeLevel [
           "##########"
-        , "#......#.#"
-        , "#......#.#"
-        , "#......#.#"
-        , "#......#.#"
-        , "####...#x#"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "####..##x#"
         , "#..#####.#"
         , "#..#...#.#"
         , "#....#.#.#"
@@ -79,8 +77,8 @@ simpleTerrain = modifyTerrain Terrain {
 
 simpleAI :: AI
 simpleAI = defaultAI 
---            & aiPlan .~ PlanPickUpItem 4
-            & aiPlan .~ PlanDig (7, 3, 1)
+            & aiPlan .~ PlanPickUpItem 4
+--            & aiPlan .~ PlanDig (7, 3, 1)
             & aiPlanState .~ PlanStarted
 
 simpleAct :: Creature' -> State World' ()
