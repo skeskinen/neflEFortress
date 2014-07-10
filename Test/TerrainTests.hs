@@ -22,7 +22,7 @@ derive makeArbitrary ''TileType
 instance Arbitrary Tile where
     arbitrary = do
         tileType <- arbitrary
-        return (Tile IS.empty IS.empty tileType)
+        return (Tile IS.empty IS.empty IS.empty tileType)
 
 instance Arbitrary Terrain where
     arbitrary = do

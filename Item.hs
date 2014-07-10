@@ -8,11 +8,14 @@ import Utils
 data Material =
       Wood
     | Iron
+    | None
     deriving (Enum, Eq)
 
 data ItemType =
       Bed
     | Rock
+    | Wheat
+    | Drink
     deriving (Enum, Eq)
 
 type ItemId = Int
@@ -44,12 +47,15 @@ materialDesc = desc
   where
     desc Wood = "wooden"
     desc Iron = "iron"
+    desc None = ""
 
 itemTypeDesc :: ItemType -> String
 itemTypeDesc = desc
   where
     desc Bed  = "bed"
     desc Rock = "rock"
+    desc Wheat = "wheat"
+    desc Drink = "drink"
 
 itemDesc :: Item -> String
 itemDesc item = 

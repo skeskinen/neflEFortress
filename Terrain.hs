@@ -18,9 +18,11 @@ data TileType =
     | TileStairs
     deriving Eq
 
+-- TODO: merge the intsets to one set
 data Tile = Tile {
       _tileCreatures :: IS.IntSet
     , _tileItems     :: IS.IntSet
+    , _tileBuildings :: IS.IntSet
     , _tileType      :: TileType
 } deriving Eq
 
@@ -53,6 +55,7 @@ instance Show Tile where
     show t 
       | (not . IS.null) $ t ^. tileCreatures = "@"
       | (not . IS.null) $ t ^. tileItems = "$"
+      | (not . IS.null) $ t ^. tileBuildings = "O"
       | otherwise = show $ t ^. tileType
 
 instance Show Terrain where
@@ -88,6 +91,7 @@ invalidTile = Tile {
       _tileCreatures = IS.empty
     , _tileType = TileInvalid
     , _tileItems = IS.empty
+    , _tileBuildings = IS.empty
 }
 
 indexTerrain :: Terrain -> Point -> Int

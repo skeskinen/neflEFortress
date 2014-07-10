@@ -7,10 +7,11 @@ import Control.Lens
 import Control.Monad.State
 
 import AI
-import World
-import Terrain
+import Building
 import Item
+import Terrain
 import Utils
+import World
 
 type World' = World AI
 type Creature' = Creature AI
@@ -22,6 +23,7 @@ simpleWorld =  modifyWorld World {
     , _worldMaxId = 0
     , _worldItems = IM.empty
     , _worldJobs = [JobDig ((6, 1, 1), (7, 5, 1))]
+    , _worldBuildings = IM.empty
 }
   where
     modifyWorld world = world 
@@ -30,6 +32,9 @@ simpleWorld =  modifyWorld World {
         & addItem (simpleItem (2, 6, 0))
         & addItem (simpleItem (8, 1, 1))
         & addItem (simpleItem (1, 1, 1))
+        & startBuilding BuildingField   (6, 1, 1)
+        & startBuilding BuildingBrewery (6, 2, 1)
+
 
 runSimpleWorld :: Int -> World'
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
@@ -38,12 +43,12 @@ simpleTerrain :: Terrain
 simpleTerrain = modifyTerrain Terrain {
       _terrainWidth = 10
     , _terrainHeight = 10
-    , _terrainDepth = 3
+    , _terrainDepth = 2
     , _terrainTiles = tiles
 }
   where
     modifyTerrain terrain = terrain
-    tiles = tileFloor1 V.++ tileFloor2 V.++ V.replicate 100 (tile $ TileWall 3)
+    tiles = tileFloor1 V.++ tileFloor2 
     tileFloor1 = makeLevel [
           "##########"
         , "#........#"
@@ -73,6 +78,7 @@ simpleTerrain = modifyTerrain Terrain {
           _tileCreatures = IS.empty
         , _tileItems = IS.empty
         , _tileType = t
+        , _tileBuildings = IS.empty
     }
 
 simpleAI :: AI
