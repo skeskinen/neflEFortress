@@ -10,26 +10,28 @@ import World
 import Terrain
 import WorldGenerating
 
-type UI = StateT UiState IO 
+type UI = StateT UIState IO 
 
-data UiState = UiState {
+data UIState = UIState {
     _uiWorld :: World',
     _uiCamera :: Point,
-    _uiQuit :: Bool
+    _uiQuit :: Bool,
+    _uiPause :: Bool
 }
 
-makeLenses ''UiState
+makeLenses ''UIState
 
-startUi :: UI () -> IO ()
-startUi ui = do
-    runStateT ui simpleUiState
+startUI :: UI () -> IO ()
+startUI ui = do
+    runStateT ui simpleUIState
     return ()
 
-simpleUiState :: UiState
-simpleUiState = UiState {
+simpleUIState :: UIState
+simpleUIState = UIState {
       _uiWorld = simpleWorld,
       _uiCamera = (0,0,0),
-      _uiQuit = False
+      _uiQuit = False,
+      _uiPause = False
 }
 
 data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area
@@ -58,6 +60,10 @@ cameraBounds = return ()
 quit :: Command 
 quit = Command "quit" "" $ \_ ->
     uiQuit .= True
+
+pause :: Command
+pause = Command "pause" "" $ \_ ->
+    uiPause %= not
     
 descendCamera :: Command 
 descendCamera = Command "descendCamera" "" $ \_ ->
@@ -81,6 +87,4 @@ genWorld = Command "genWorld" "" $ \_ -> do
 
 advanceTurn :: Command
 advanceTurn = Command "advanceTurn" "" $ \_ -> do
-    return () -- WTF?
-    --uiWorld .= (execState (use uiWorld) stepWorld) --Nope
-    --zoom uiWorld stepWorld --No ei ainakaan nain
+    uiWorld %= execState stepWorld

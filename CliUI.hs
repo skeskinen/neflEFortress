@@ -40,8 +40,7 @@ until_ pred action = do
     c <- pred
     if c then until_ pred action else return ()
 
-newCliUi :: UI ()
-newCliUi = until_ (not <$> use uiQuit) (cliDraw >> cliEval)
+newCliUI = until_ (not <$> use uiQuit) (cliDraw >> cliEval)
 
 spaces1 :: Parser ()
 spaces1 = skipMany1 space
