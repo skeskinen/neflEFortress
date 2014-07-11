@@ -1,38 +1,36 @@
-module CliUI where 
+module CliUI (newCliUI) where 
 
 import Control.Applicative hiding ((<|>))
 import Control.Lens
-import Text.ParserCombinators.Parsec 
 import System.Environment
 import Control.Monad
 import Control.Monad.State
 import System.IO
+import Control.Concurrent
+import System.Console.ANSI
 
-import Utils
 import UI
+import UIUtils
 import World
 import Terrain
 
-cliClear :: UI ()
-cliClear = liftIO $ putStr "\ESC[2J"
-
 cliDraw :: UI ()
 cliDraw = do
-    cliClear
+    liftIO clearScreen
+    liftIO $ setCursorColumn 0
     t <- use (uiWorld . worldTerrain)
     f <- use (uiCamera . _3)
     let floor = getFloor t f
     liftIO $ print floor
-    liftIO $ putStr "> "
+    input <- use uiInputBuffer
+    liftIO $ putStr ("> " ++ input)
     liftIO $ hFlush stdout
 
 cliEval :: UI ()
 cliEval = do
-    str <- liftIO $ getLine
-    let r = parse parseExpr "Input" str
-    case r of
-         Left err -> return ()
-         Right (com, arg) -> (com ^. commandFunction) arg
+    str <- use uiInputBuffer
+    uiInputBuffer .= ""
+    parseCommand str
 
 until_ :: Monad m => m Bool -> m () -> m ()
 until_ pred action = do
@@ -40,68 +38,34 @@ until_ pred action = do
     c <- pred
     if c then until_ pred action else return ()
 
-newCliUI = until_ (not <$> use uiQuit) (cliDraw >> cliEval)
+handleKey :: Char -> UI ()
+handleKey '\t' = do
+  input <- use uiInputBuffer
+  let choices = parseCompletion input
+  if (length choices == 1) 
+    then uiInputBuffer .= (head choices) 
+    else return ()
+handleKey '\DEL' = uiInputBuffer %= (\i -> take ((length i) - 1) i)
+handleKey '\n' = cliEval
+handleKey a 
+    | a `elem` ['a'..'z']++['A'..'Z']
+        ++['0'..'9']++['(',')',','] = uiInputBuffer %= (++ return a)
+    | otherwise = return ()
 
-spaces1 :: Parser ()
-spaces1 = skipMany1 space
+handleInput :: UI ()
+handleInput = do 
+    r <- liftIO $ hReady stdin
+    case r of
+      True -> do
+        c <- liftIO $ hGetChar stdin 
+        handleKey c
+        handleInput
+      False -> return ()
 
-separator :: Parser ()
-separator = spaces >> char ',' >> spaces  
+wait :: UI ()
+wait = liftIO $ threadDelay 500000 --ms
 
-parseExpr :: CommandParser
-parseExpr = do
-    choice genNoTargetCommandParsers
-      <|> choice genPointCommandParsers
-      <|> choice genAreaCommandParsers
-
-for = flip map
-
-type CommandParser = Parser (Command, CommandArgument)
-
-genCommandParsers :: [Command] -> Parser CommandArgument -> [CommandParser] 
-genCommandParsers cs argParser = for cs $ \c -> do
-    try $ string (c ^. commandName)
-    spaces
-    arg <- argParser
-    return (c, arg)
-
-genNoTargetCommandParsers :: [CommandParser]
-genNoTargetCommandParsers = genCommandParsers noTargetCommands parseNoTargetArgument
-
-genPointCommandParsers :: [CommandParser] 
-genPointCommandParsers = genCommandParsers pointCommands parsePointArgument
-
-genAreaCommandParsers :: [CommandParser] 
-genAreaCommandParsers = genCommandParsers areaCommands parseAreaArgument
-
-parseInt :: Parser Int
-parseInt = read <$> many1 digit
-
-parseNoTargetArgument :: Parser CommandArgument
-parseNoTargetArgument = return NoTarget
-
-parsePointArgument :: Parser CommandArgument
-parsePointArgument = PointArgument <$> parsePoint
-
-parseAreaArgument :: Parser CommandArgument
-parseAreaArgument = AreaArgument <$> parseArea
-
-parsePoint :: Parser Point
-parsePoint = do
-    char '('
-    spaces
-    x <- parseInt
-    separator
-    y <- parseInt
-    separator
-    z <- parseInt
-    spaces
-    char ')'
-    return (x,y,z)
-
-parseArea :: Parser Area
-parseArea = do
-    p1 <- parsePoint
-    spaces
-    p2 <- parsePoint
-    return (p1, p2)
+newCliUI = do
+    liftIO $ hSetBuffering stdin NoBuffering
+    liftIO $ hSetEcho stdin False
+    until_ (not <$> use uiQuit) (cliDraw >> handleInput >> run >> wait)

@@ -16,7 +16,9 @@ data UIState = UIState {
     _uiWorld :: World',
     _uiCamera :: Point,
     _uiQuit :: Bool,
-    _uiPause :: Bool
+    _uiPause :: Bool,
+    _uiInputBuffer :: String,
+    _uiFrameCounter :: Int
 }
 
 makeLenses ''UIState
@@ -31,7 +33,9 @@ simpleUIState = UIState {
       _uiWorld = simpleWorld,
       _uiCamera = (0,0,0),
       _uiQuit = False,
-      _uiPause = False
+      _uiPause = False,
+      _uiInputBuffer = "",
+      _uiFrameCounter = 0
 }
 
 data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area
@@ -45,8 +49,13 @@ data Command = Command {
 
 makeLenses ''Command
 
+run :: UI ()
+run = do
+    p <- use uiPause
+    if (not p) then uiWorld %= execState stepWorld else return ()
+
 noTargetCommands :: [Command]
-noTargetCommands = [quit, genWorld, advanceTurn, descendCamera, ascendCamera]
+noTargetCommands = [pause, quit, genWorld, advanceTurn, descendCamera, ascendCamera]
 
 areaCommands :: [Command]
 areaCommands = [dig]
@@ -81,7 +90,6 @@ move :: Command
 move = Command "move" "" $ \p -> do
     return ()
 
-genWorld :: Command
 genWorld = Command "genWorld" "" $ \_ -> do
     uiWorld .= simpleWorld
 
