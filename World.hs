@@ -79,16 +79,16 @@ worldPhysics :: State (World cs) ()
 worldPhysics = do
     world <- get
     let phys objPos moveObj obj = do
-        let mpos = obj ^? objPos
-        case mpos of
-            Just pos -> do
-                let newpos = pos & _3 +~ 1
-                let getTileType position = world ^. worldTerrain . terrainTile position . tileType
-                if TileEmpty == getTileType pos && not (tileIsWall (getTileType newpos))
-                    then moveObj obj newpos
-                    else return obj
-            Nothing -> 
-                return obj
+            let mpos = obj ^? objPos
+            case mpos of
+                Just pos -> do
+                    let newpos = pos & _3 +~ 1
+                    let getTileType position = world ^. worldTerrain . terrainTile position . tileType
+                    if TileEmpty == getTileType pos && not (tileIsWall (getTileType newpos))
+                        then moveObj obj newpos
+                        else return obj
+                Nothing -> 
+                    return obj
             
     newCreatures <- traverse (phys creaturePos moveCreature) (world ^. worldCreatures) 
     worldCreatures .= newCreatures
@@ -101,8 +101,9 @@ jobFinished (JobDig area) = do
     terrain <- use worldTerrain
     return . and $ map (\pos -> not . tileIsWall $ terrain ^. terrainTile pos . tileType) (areaPoints area)
 jobFinished (JobBuild bid) = do
-    state <- use . pre $ worldBuildings . at bid . traverse . buildingState 
-    return $ isn't (_Just . _BuildingBuilding) state
+    bState <- use . pre $ worldBuildings . at bid . traverse . buildingState 
+    return $ isn't (_Just . _BuildingBuilding) bState
+jobFinished JobBrew = return False
 
 checkJobs :: State (World cs) ()
 checkJobs = do

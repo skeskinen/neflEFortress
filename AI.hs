@@ -5,7 +5,6 @@ import Control.Applicative
 import Control.Lens
 import Control.Monad.State
 import Data.Foldable (asum)
-import Data.Maybe (fromMaybe)
 import Data.IntSet.Lens
 
 import Building
@@ -59,11 +58,11 @@ tryDig creature terrain point =
     case terrain ^. terrainTile point . tileType of
         TileWall _ -> do
             let tryDigging dir = do
-                let digPos = addDir dir point
-                if tileIsWall (terrain ^. terrainTile digPos . tileType)
-                    then Nothing
-                    else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
-                            findPath terrain (creature ^. creaturePos) digPos
+                    let digPos = addDir dir point
+                    if tileIsWall (terrain ^. terrainTile digPos . tileType)
+                        then Nothing
+                        else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
+                                findPath terrain (creature ^. creaturePos) digPos
             asum $ map tryDigging [DUp, DDown, DRight, DLeft]
         _ -> Nothing
 
@@ -105,7 +104,6 @@ makeActions creature = case ai ^. aiPlanState of
         PlanBuild bid -> tryBuild bid >>= doOrDoNothing
         _ -> doNothing
     PlanFinished -> do 
-        worldJobs <- use worldJobs
         let tryJobs jobs = case jobs of
                 [] -> idle
                 (job:moreJobs) -> case job of
@@ -124,8 +122,8 @@ makeActions creature = case ai ^. aiPlanState of
                              Just build -> return build
                              Nothing -> tryJobs moreJobs
                     _ -> tryJobs moreJobs
-                    
-        tryJobs worldJobs
+        allJobs <- use worldJobs
+        tryJobs allJobs 
   where
     ai = creature ^. creatureState
     doNothing = return $ ai & aiPlanState .~ PlanFinished
@@ -196,8 +194,8 @@ runAI creature = do
                     case mbid of
                         Just bid -> do
                             worldBuildings . at bid . traverse . buildingState %= build
-                            state <- use . pre $ worldBuildings . at bid . traverse . buildingState 
-                            if isn't (_Just . _BuildingBuilding) state
+                            bState <- use . pre $ worldBuildings . at bid . traverse . buildingState 
+                            if isn't (_Just . _BuildingBuilding) bState
                                then nextAction
                                else return creature
                         Nothing -> nextAction
