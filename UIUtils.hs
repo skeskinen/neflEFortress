@@ -2,11 +2,15 @@ module UIUtils where
 
 import Text.ParserCombinators.Parsec 
 import Control.Monad
-import Control.Applicative hiding ((<|>))
+import Control.Applicative hiding ((<|>), many)
 import Control.Lens
+import Data.List
 
 import UI
 import Utils
+
+commandNames :: [Command] -> [String]
+commandNames = sort . map (view commandName)
 
 spaces1 :: Parser ()
 spaces1 = skipMany1 space
@@ -19,7 +23,7 @@ parseCommand str = do
     let r = parse parseExpr "Input" str
     case r of
          Left err -> return ()
-         Right (com, arg) -> (com ^. commandFunction) arg
+         Right (com, arg) -> execCommand com arg
 
 parseCompletion :: String -> [String]
 parseCompletion str = filter (not . null) . map (\parser -> 
@@ -34,11 +38,12 @@ parseExpr = do
     choice genNoTargetCommandParsers
       <|> choice genPointCommandParsers
       <|> choice genAreaCommandParsers
+      <|> choice genStringCommandParsers
 
 for = flip map
 
 genCompletionParsers :: Int -> [Parser String]
-genCompletionParsers n = for (concat [noTargetCommands, pointCommands, areaCommands]) $ \c -> do
+genCompletionParsers n = for allCommands $ \c -> do
     let name = c ^. commandName 
     string $ (take n name)
     return name 
@@ -61,6 +66,9 @@ genPointCommandParsers = genCommandParsers pointCommands parsePointArgument
 genAreaCommandParsers :: [CommandParser] 
 genAreaCommandParsers = genCommandParsers areaCommands parseAreaArgument
 
+genStringCommandParsers :: [CommandParser] 
+genStringCommandParsers = genCommandParsers stringCommands parseStringArgument
+
 parseInt :: Parser Int
 parseInt = read <$> many1 digit
 
@@ -72,6 +80,9 @@ parsePointArgument = PointArgument <$> parsePoint
 
 parseAreaArgument :: Parser CommandArgument
 parseAreaArgument = AreaArgument <$> parseArea
+
+parseStringArgument :: Parser CommandArgument
+parseStringArgument = StringArgument <$> many letter
 
 parsePoint :: Parser Point
 parsePoint = do

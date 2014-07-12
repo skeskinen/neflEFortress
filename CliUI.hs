@@ -8,6 +8,8 @@ import Control.Monad.State
 import System.IO
 import Control.Concurrent
 import System.Console.ANSI
+import Data.List
+import qualified Data.Map as M
 
 import UI
 import UIUtils
@@ -17,11 +19,13 @@ import Terrain
 cliDraw :: UI ()
 cliDraw = do
     liftIO clearScreen
-    liftIO $ setCursorColumn 0
+    liftIO $ setCursorPosition 0 0
     t <- use (uiWorld . worldTerrain)
     f <- use (uiCamera . _3)
     let floor = getFloor t f
     liftIO $ print floor
+    message <- use uiMessage
+    liftIO $ putStrLn message
     input <- use uiInputBuffer
     liftIO $ putStr ("> " ++ input)
     liftIO $ hFlush stdout
@@ -66,6 +70,11 @@ wait :: UI ()
 wait = liftIO $ threadDelay 500000 --ms
 
 newCliUI = do
+    cliUIHandlers
     liftIO $ hSetBuffering stdin NoBuffering
     liftIO $ hSetEcho stdin False
     until_ (not <$> use uiQuit) (cliDraw >> handleInput >> run >> wait)
+
+cliUIHandlers :: UI ()
+cliUIHandlers = do
+    uiCommandHandlers %= M.insert "help" (uiMessage .= intercalate " " (commandNames allCommands))

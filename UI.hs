@@ -3,6 +3,7 @@ module UI where
 
 import Control.Monad.State
 import Control.Lens
+import qualified Data.Map as M
 
 import Utils
 import Control.Lens
@@ -18,7 +19,9 @@ data UIState = UIState {
     _uiQuit :: Bool,
     _uiPause :: Bool,
     _uiInputBuffer :: String,
-    _uiFrameCounter :: Int
+    _uiFrameCounter :: Int,
+    _uiCommandHandlers :: M.Map String (UI ()),
+    _uiMessage :: String
 }
 
 makeLenses ''UIState
@@ -35,10 +38,13 @@ simpleUIState = UIState {
       _uiQuit = False,
       _uiPause = False,
       _uiInputBuffer = "",
-      _uiFrameCounter = 0
+      _uiFrameCounter = 0,
+      _uiCommandHandlers = M.empty,
+      _uiMessage = ""
 }
 
-data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area
+data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area | StringArgument String
+    deriving Show
 type CommandFunction = (CommandArgument -> UI ())
 
 data Command = Command {
@@ -54,45 +60,56 @@ run = do
     p <- use uiPause
     if (not p) then uiWorld %= execState stepWorld else return ()
 
+allCommands :: [Command]
+allCommands = concat [noTargetCommands, areaCommands, pointCommands, stringCommands]
+
+execCommand :: Command -> CommandArgument -> UI ()
+execCommand cmd arg = do
+    (cmd ^. commandFunction) arg
+    handlers <- use uiCommandHandlers
+    let h = M.lookup (cmd ^. commandName) handlers
+    case h of
+         Just handler -> handler
+         Nothing -> return ()
+
 noTargetCommands :: [Command]
-noTargetCommands = [pause, quit, genWorld, advanceTurn, descendCamera, ascendCamera]
+noTargetCommands = 
+  [
+      Command "quit" "" (\_ -> do
+        uiQuit .= True)
+    , Command "pause" "" (\_ -> do
+        uiPause %= not)
+    , Command "descendCamera" "" (\_ -> do
+        (uiCamera . _3) += 1 >> cameraBounds)
+    , Command "ascendCamera" "" (\_ -> do
+        (uiCamera . _3) += (-1) >> cameraBounds)
+    , Command "genWorld" "" (\_ -> do
+        uiWorld .= simpleWorld)
+    , Command "advanceTurn" "" (\_ -> do
+        uiWorld %= execState stepWorld)
+  ]
 
 areaCommands :: [Command]
-areaCommands = [dig]
+areaCommands = 
+  [
+    Command "dig" "" $ \a -> do
+        return ()
+  ]
 
 pointCommands :: [Command]
-pointCommands = [move]
+pointCommands = 
+  [
+    Command "move" "" $ \p -> do
+        return ()
+  ]
+
+stringCommands :: [Command]
+stringCommands = 
+  [
+    Command "help" "" $ \s -> do
+        return ()
+  ]
 
 cameraBounds :: UI ()
 cameraBounds = return ()
 
-quit :: Command 
-quit = Command "quit" "" $ \_ ->
-    uiQuit .= True
-
-pause :: Command
-pause = Command "pause" "" $ \_ ->
-    uiPause %= not
-    
-descendCamera :: Command 
-descendCamera = Command "descendCamera" "" $ \_ ->
-    (uiCamera . _3) += 1 >> cameraBounds
-
-ascendCamera :: Command
-ascendCamera = Command "ascendCamera" "" $ \_ ->
-    (uiCamera . _3) += (-1) >> cameraBounds
-
-dig :: Command 
-dig = Command "dig" "" $ \a -> do
-    return ()
-
-move :: Command
-move = Command "move" "" $ \p -> do
-    return ()
-
-genWorld = Command "genWorld" "" $ \_ -> do
-    uiWorld .= simpleWorld
-
-advanceTurn :: Command
-advanceTurn = Command "advanceTurn" "" $ \_ -> do
-    uiWorld %= execState stepWorld
