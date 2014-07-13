@@ -31,10 +31,10 @@ parseCompletion str = filter (not . null) . map (\parser ->
       case r of
         Left _ -> ""
         Right a -> a
-    ) $ (genCompletionParsers (length str))
+    ) $ genCompletionParsers (length str)
 
 parseExpr :: CommandParser
-parseExpr = do
+parseExpr = 
     choice genNoTargetCommandParsers
       <|> choice genPointCommandParsers
       <|> choice genAreaCommandParsers
@@ -45,7 +45,7 @@ for = flip map
 genCompletionParsers :: Int -> [Parser String]
 genCompletionParsers n = for allCommands $ \c -> do
     let name = c ^. commandName 
-    string $ (take n name)
+    string $ take n name
     return name 
 
 type CommandParser = Parser (Command, CommandArgument)

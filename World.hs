@@ -211,7 +211,7 @@ fieldAct field =
     when (hasn't (buildingState . _BuildingBuilding) field) $
         if anyOf (buildingInternal . _Just . _FieldTimer) (<= 0) field 
             then do
-                modify $ addItem $ Item {
+                modify $ addItem Item {
                       _itemId = -1
                     , _itemType = Wheat
                     , _itemMaterial = None

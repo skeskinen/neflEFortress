@@ -40,31 +40,27 @@ until_ :: Monad m => m Bool -> m () -> m ()
 until_ pred action = do
     action
     c <- pred
-    if c then until_ pred action else return ()
+    when c $ until_ pred action 
 
 handleKey :: Char -> UI ()
 handleKey '\t' = do
   input <- use uiInputBuffer
   let choices = parseCompletion input
-  if (length choices == 1) 
-    then uiInputBuffer .= (head choices) 
-    else return ()
-handleKey '\DEL' = uiInputBuffer %= (\i -> take ((length i) - 1) i)
+  when (length choices == 1) $ uiInputBuffer .= head choices 
+handleKey '\DEL' = uiInputBuffer %= (\i -> take (length i - 1) i)
 handleKey '\n' = cliEval
 handleKey a 
     | a `elem` ['a'..'z']++['A'..'Z']
-        ++['0'..'9']++['(',')',','] = uiInputBuffer %= (++ return a)
+        ++['0'..'9']++"()," = uiInputBuffer %= (++ return a)
     | otherwise = return ()
 
 handleInput :: UI ()
 handleInput = do 
     r <- liftIO $ hReady stdin
-    case r of
-      True -> do
-        c <- liftIO $ hGetChar stdin 
+    when r $ do
+        c <- liftIO getChar 
         handleKey c
         handleInput
-      False -> return ()
 
 wait :: UI ()
 wait = liftIO $ threadDelay 500000 --ms
@@ -76,5 +72,4 @@ newCliUI = do
     until_ (not <$> use uiQuit) (cliDraw >> handleInput >> run >> wait)
 
 cliUIHandlers :: UI ()
-cliUIHandlers = do
-    uiCommandHandlers %= M.insert "help" (uiMessage .= intercalate " " (commandNames allCommands))
+cliUIHandlers = addHandler "help" (uiMessage .= unwords (commandNames allCommands))
