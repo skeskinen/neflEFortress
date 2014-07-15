@@ -1,7 +1,10 @@
+{-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
+
 module CliUI (newCliUI) where 
 
 import Control.Applicative hiding ((<|>))
 import Control.Lens
+import Control.Lens.Zoom
 import System.Environment
 import Control.Monad
 import Control.Monad.State
@@ -16,25 +19,51 @@ import UIUtils
 import World
 import Terrain
 
-cliDraw :: UI ()
+type CliUI = StateT CliUIState IO
+
+data CliUIState = CliUIState {
+    _cliUIState :: UIState
+}
+
+simpleCliUIState :: CliUIState
+simpleCliUIState = CliUIState {
+    _cliUIState = simpleUIState
+}
+
+makeLenses ''CliUIState
+
+newCliUI :: IO ()
+newCliUI = void (runStateT cliLoop simpleCliUIState)
+
+cliLoop :: CliUI ()
+cliLoop = do
+    cliUIHandlers
+    liftIO $ hSetBuffering stdin NoBuffering
+    liftIO $ hSetEcho stdin False
+    until_ (not <$> use (cliUIState . uiQuit)) (cliDraw >> handleInput >> zoomUI run >> wait)
+
+zoomUI :: UI a -> CliUI a
+zoomUI = zoom cliUIState
+
+cliDraw :: CliUI ()
 cliDraw = do
     liftIO clearScreen
     liftIO $ setCursorPosition 0 0
-    t <- use (uiWorld . worldTerrain)
-    f <- use (uiCamera . _3)
+    t <- use $ cliUIState . uiWorld . worldTerrain
+    f <- use $ cliUIState . uiCamera . _3
     let floor = getFloor t f
     liftIO $ print floor
-    message <- use uiMessage
+    message <- use $ cliUIState . uiMessage
     liftIO $ putStrLn message
-    input <- use uiInputBuffer
+    input <- use $ cliUIState . uiInputBuffer
     liftIO $ putStr ("> " ++ input)
     liftIO $ hFlush stdout
 
-cliEval :: UI ()
+cliEval :: CliUI ()
 cliEval = do
-    str <- use uiInputBuffer
-    uiInputBuffer .= ""
-    parseCommand str
+    str <- use $ cliUIState . uiInputBuffer
+    zoomUI $ uiInputBuffer .= ""
+    zoomUI $ parseCommand str
 
 until_ :: Monad m => m Bool -> m () -> m ()
 until_ pred action = do
@@ -42,19 +71,19 @@ until_ pred action = do
     c <- pred
     when c $ until_ pred action 
 
-handleKey :: Char -> UI ()
+handleKey :: Char -> CliUI ()
 handleKey '\t' = do
-  input <- use uiInputBuffer
+  input <- use $ cliUIState . uiInputBuffer
   let choices = parseCompletion input
-  when (length choices == 1) $ uiInputBuffer .= head choices 
-handleKey '\DEL' = uiInputBuffer %= (\i -> take (length i - 1) i)
+  when (length choices == 1) $ zoomUI $ uiInputBuffer .= head choices 
+handleKey '\DEL' = zoomUI $ uiInputBuffer %= (\i -> take (length i - 1) i)
 handleKey '\n' = cliEval
 handleKey a 
     | a `elem` ['a'..'z']++['A'..'Z']
-        ++['0'..'9']++"()," = uiInputBuffer %= (++ return a)
+        ++['0'..'9']++"()," = zoomUI $ uiInputBuffer %= (++ return a)
     | otherwise = return ()
 
-handleInput :: UI ()
+handleInput :: CliUI ()
 handleInput = do 
     r <- liftIO $ hReady stdin
     when r $ do
@@ -62,14 +91,8 @@ handleInput = do
         handleKey c
         handleInput
 
-wait :: UI ()
+wait :: CliUI ()
 wait = liftIO $ threadDelay 500000 --ms
 
-newCliUI = do
-    cliUIHandlers
-    liftIO $ hSetBuffering stdin NoBuffering
-    liftIO $ hSetEcho stdin False
-    until_ (not <$> use uiQuit) (cliDraw >> handleInput >> run >> wait)
-
-cliUIHandlers :: UI ()
-cliUIHandlers = addHandler "help" (uiMessage .= unwords (commandNames allCommands))
+cliUIHandlers :: CliUI ()
+cliUIHandlers = zoomUI $ addHandler "help" (uiMessage .= unwords (commandNames allCommands))
