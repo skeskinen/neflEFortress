@@ -27,6 +27,11 @@ data UIState = UIState {
 
 makeLenses ''UIState
 
+startUI :: UI () -> IO ()
+startUI ui = do
+    runStateT ui simpleUIState
+    return ()
+
 simpleUIState :: UIState
 simpleUIState = UIState {
       _uiWorld = simpleWorld,
@@ -41,7 +46,7 @@ simpleUIState = UIState {
 
 data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area | StringArgument String
     deriving Show
-type CommandFunction = CommandArgument -> UI ()
+type CommandFunction = (CommandArgument -> UI ())
 
 data Command = Command {
       _commandName :: String
