@@ -9,6 +9,12 @@ import Data.List
 import UI
 import Utils
 
+until_ :: Monad m => m Bool -> m () -> m ()
+until_ pred action = do
+    action
+    c <- pred
+    unless c $ until_ pred action 
+
 commandNames :: [Command] -> [String]
 commandNames = sort . map (view commandName)
 
@@ -18,12 +24,8 @@ spaces1 = skipMany1 space
 separator :: Parser ()
 separator = spaces >> char ',' >> spaces  
 
-parseCommand :: String -> UI ()
-parseCommand str = do
-    let r = parse parseExpr "Input" str
-    case r of
-         Left err -> return ()
-         Right (com, arg) -> execCommand com arg
+parseCommand :: String -> Either ParseError (Command, CommandArgument)
+parseCommand str = parse parseExpr "Input" str
 
 parseCompletion :: String -> [String]
 parseCompletion str = filter (not . null) . map (\parser -> 

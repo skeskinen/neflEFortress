@@ -4,7 +4,6 @@ module UI where
 import Control.Monad.State
 import Control.Monad
 import Control.Lens
-import Data.Maybe
 import qualified Data.Map as M
 
 import Utils
@@ -18,11 +17,7 @@ data UIState = UIState {
     _uiWorld :: World',
     _uiCamera :: Point,
     _uiQuit :: Bool,
-    _uiPause :: Bool,
-    _uiInputBuffer :: String,
-    _uiFrameCounter :: Int,
-    _uiCommandHandlers :: M.Map String (UI ()),
-    _uiMessage :: String
+    _uiPause :: Bool
 }
 
 makeLenses ''UIState
@@ -32,11 +27,7 @@ simpleUIState = UIState {
       _uiWorld = simpleWorld,
       _uiCamera = (0,0,0),
       _uiQuit = False,
-      _uiPause = False,
-      _uiInputBuffer = "",
-      _uiFrameCounter = 0,
-      _uiCommandHandlers = M.empty,
-      _uiMessage = ""
+      _uiPause = False
 }
 
 data CommandArgument = NoTarget | PointArgument Point | AreaArgument Area | StringArgument String
@@ -51,9 +42,6 @@ data Command = Command {
 
 makeLenses ''Command
 
-addHandler :: String -> UI () -> UI ()
-addHandler command handler = uiCommandHandlers %= M.insert command handler
-
 run :: UI ()
 run = do
     p <- use uiPause
@@ -63,11 +51,7 @@ allCommands :: [Command]
 allCommands = concat [noTargetCommands, areaCommands, pointCommands, stringCommands]
 
 execCommand :: Command -> CommandArgument -> UI ()
-execCommand cmd arg = do
-    (cmd ^. commandFunction) arg
-    handlers <- use uiCommandHandlers
-    let h = M.lookup (cmd ^. commandName) handlers
-    fromMaybe (return ()) h
+execCommand cmd arg = (cmd ^. commandFunction) arg
 
 noTargetCommands :: [Command]
 noTargetCommands = 
