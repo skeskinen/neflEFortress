@@ -9,6 +9,12 @@ import Data.List
 import UI
 import Utils
 
+unwindWithIndicesM_ :: (Monad m) => [[a]] -> (a -> Int -> Int -> m b) -> m ()
+unwindWithIndicesM_ xs f = go xs 0 0 f
+    where go [[]] x y _ = return ()
+          go ([]:ys) x y f = go ys 0 (y+1) f
+          go ((el:xs):ys) x y f = f el x y >> go (xs:ys) (x+1) y f
+
 until_ :: Monad m => m Bool -> m () -> m ()
 until_ pred action = do
     action

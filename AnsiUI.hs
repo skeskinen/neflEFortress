@@ -29,7 +29,8 @@ simpleAnsiUIState = AnsiUIState {
 }
 
 newAnsiUI :: IO ()
-newAnsiUI = void (runStateT start simpleAnsiUIState)
+--newAnsiUI = void (runStateT start simpleAnsiUIState)
+newAnsiUI = print size
 
 start :: AnsiUI ()
 start = do

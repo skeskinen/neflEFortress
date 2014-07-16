@@ -2,7 +2,7 @@ module Main where
 
 import UI
 import CliUI
-import AnsiUI
+import GLUI
 
 main :: IO ()
-main = newCliUI
+main = newGLUI
