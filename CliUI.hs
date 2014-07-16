@@ -5,7 +5,6 @@ module CliUI (newCliUI) where
 import Control.Applicative hiding ((<|>))
 import Data.Maybe
 import Control.Lens
-import Control.Lens.Zoom
 import System.Environment
 import Control.Monad
 import Control.Monad.State
