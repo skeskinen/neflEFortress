@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
 module NCursesUI (newNCursesUI) where
 
 import UI.NCurses

@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
-
 module CliUI (newCliUI) where 
 
 import Control.Applicative hiding ((<|>))
