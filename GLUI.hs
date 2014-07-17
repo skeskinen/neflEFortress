@@ -14,7 +14,7 @@ import Data.Vector.Lens
 import qualified Data.Map as M
 import qualified Data.IntSet as IS
 
-import Graphics.Rendering.OpenGL as GL
+import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
@@ -27,15 +27,21 @@ import Terrain
 
 type GLUI = StateT GLUIState IO
 
+
+
 data GLUIState = GLUIState {
     _glUIState :: UIState,
-    _glCommandHandlers :: M.Map String (GLUI ())
+    _glCommandHandlers :: M.Map String (GLUI ()),
+    _glLastStep :: Double,
+    _glLastRender :: Double
 }
 
 simpleGLUIState :: GLUIState
 simpleGLUIState = GLUIState {
     _glUIState = simpleUIState,
-    _glCommandHandlers = M.empty
+    _glCommandHandlers = M.empty,
+    _glLastStep = -1,
+    _glLastRender = -1
 }
 
 makeLenses ''GLUIState
@@ -69,10 +75,17 @@ setCallbacks = do
 
 loop :: GLUI ()
 loop = do
-    draw
+    t0 <- liftIO (GL.get GLFW.time)
+    ls <- use glLastStep
+    lr <- use glLastRender
     handleInput
-    zoomUI run
-    liftIO $ GLFW.sleep 0.5
+    when ((t0-ls)>=0.5) $  do
+        glLastStep .= t0
+        zoomUI run
+    when ((t0-lr)>=0.1) $ do
+        glLastRender .= t0
+        draw
+    liftIO $ GLFW.sleep (0.01)
 
 drawTileArray :: [[Tile]] -> IO ()
 drawTileArray tiles = unwindWithIndicesM_ tiles drawTile
@@ -81,20 +94,21 @@ drawTile :: Tile -> Int -> Int -> IO ()
 drawTile tile x y = do
     -- terrain
     case (tile ^. tileType) of 
-        TileGround -> drawImage point1 point2 "ground"
-        TileWall _ -> drawImage point1 point2 "wall"
-        TileStairs -> drawImage point1 point2 "stairs"
-        TileEmpty -> drawImage point1 point2 "empty"
-        otherwise -> drawImage point1 point2 "empty"
+        TileGround -> drawIm "ground"
+        TileWall _ -> drawIm "wall"
+        TileStairs -> drawIm "stairs"
+        TileEmpty -> drawIm "empty"
+        otherwise -> drawIm "empty"
     -- building
-    when ((not . IS.null) $ tile ^. tileBuildings) $ drawImage point1 point2 "building"
+    when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
     -- item
-    when ((not . IS.null) $ tile ^. tileItems) $ drawImage point1 point2 "item"
+    when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
     -- creature
-    when ((not . IS.null) $ tile ^. tileCreatures) $ drawImage point1 point2 "creature"
+    when ((not . IS.null) $ tile ^. tileCreatures) $ drawIm "creature"
     
-    where point1 = (fromIntegral $ 32*(x-1), fromIntegral $ 32*(y-1))::GLpoint2D
-          point2 = (fromIntegral $ 32*x, fromIntegral $ 32*y)::GLpoint2D
+    where drawIm = drawImage point1 point2
+          point1 = (fromIntegral $ 32*x, fromIntegral $ 32*y)::GLpoint2D
+          point2 = (fromIntegral $ 32*(x+1), fromIntegral $ 32*(y+1))::GLpoint2D
 
 draw :: GLUI ()
 draw = do
