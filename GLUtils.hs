@@ -5,6 +5,10 @@ import Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
 import Control.Monad
+import System.IO
+import System.Exit
+import Data.Vector.Storable (unsafeWith)
+import qualified Codec.Picture as JP
 
 type GLpoint2D = (GLfloat, GLfloat)
 
@@ -17,25 +21,38 @@ texCoord2 = GL.TexCoord2
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
-setupUI :: IO()
+windowSizeCallback :: Window -> Int -> Int -> IO ()
+windowSizeCallback win w h = do
+    prepareViewport w h
+
+prepareViewport:: Int -> Int -> IO ()
+prepareViewport w h = do
+    GL.viewport   $= (GL.Position 0 0, Size (fromIntegral w) (fromIntegral h))
+    GL.matrixMode $= GL.Projection
+    GL.loadIdentity
+    GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
+    
+errorCallback :: GLFW.ErrorCallback
+errorCallback err description = hPutStrLn stderr description
+
+setupUI :: IO GLFW.Window
 setupUI = do
-    GLFW.initialize
+    GLFW.setErrorCallback (Just errorCallback)
+    GLFW.init
     -- open window
-    GLFW.openWindow (GL.Size 800 800) [GLFW.DisplayAlphaBits 8] GLFW.Window
-    GLFW.windowTitle $= "GLFW"
-        
+    Just win <- GLFW.createWindow 800 800 "GLFW" Nothing Nothing    -- [GLFW.DisplayAlphaBits 8] GLFW.Window
+    GLFW.makeContextCurrent (Just win)
     -- set the color to clear background
     GL.clearColor $= Color4 0 0 0 0
     -- load texture
-    [textureName] <- GL.genObjectNames 1
-    GL.textureBinding GL.Texture2D $= Just textureName
-    GL.textureFilter  GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
-    GLFW.loadTexture2D "tileset.tga" [OriginUL]
+    loadTexture "tileset.png"
     GL.texture GL.Texture2D $= Enabled
+    prepareViewport 800 800
     
     -- enable transparency
     blend $= Enabled
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
+    return win
 
 
 drawImage :: GLpoint2D -> GLpoint2D -> String -> IO()
@@ -64,6 +81,25 @@ atlas tileName =
         "empty" -> Just((5,1),wh)
         "item" -> Just((6,1),wh)
         "building" -> Just((7,1),wh)
+        "?" -> Just((8,1),wh)
+        "black" -> Just((9,1),wh)
+        "focus"-> Just((10,1),wh)
         _ -> Nothing
     where wh = (32,32)
     
+loadTexture :: String -> IO ()
+loadTexture imagePath = do
+    [textureName] <- GL.genObjectNames 1
+    GL.textureBinding GL.Texture2D $= Just textureName
+    GL.textureFilter  GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
+    image <- JP.readImage imagePath
+    case image of 
+        (Left s) -> do print s
+        (Right (JP.ImageRGBA8 (JP.Image width height dat))) -> do
+            -- Access the data vector pointer
+            unsafeWith dat $ \ptr ->
+                GL.texImage2D GL.Texture2D NoProxy 0 GL.RGBA8 
+                    (GL.TextureSize2D (toEnum width) (toEnum height))
+                    0 (PixelData GL.RGBA UnsignedByte ptr)
+        (Right _) -> do
+            print "image not found"

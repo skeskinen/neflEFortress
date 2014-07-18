@@ -18,6 +18,7 @@ import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
+import System.Exit
 
 import UI
 import UIUtils
@@ -33,59 +34,57 @@ data GLUIState = GLUIState {
     _glUIState :: UIState,
     _glCommandHandlers :: M.Map String (GLUI ()),
     _glLastStep :: Double,
-    _glLastRender :: Double
+    _glLastRender :: Double,
+    _glWindow :: GLFW.Window
 }
 
-simpleGLUIState :: GLUIState
-simpleGLUIState = GLUIState {
-    _glUIState = simpleUIState,
-    _glCommandHandlers = M.empty,
-    _glLastStep = -1,
-    _glLastRender = -1
-}
+simpleGLUIState :: IO GLUIState
+simpleGLUIState = do
+    window <- liftIO setupUI
+    return GLUIState {
+        _glUIState = simpleUIState,
+        _glCommandHandlers = M.empty,
+        _glLastStep = -1,
+        _glLastRender = -1,
+        _glWindow = window
+    }
 
 makeLenses ''GLUIState
 
 newGLUI :: IO ()
-newGLUI = void (runStateT start simpleGLUIState)
+newGLUI = void (simpleGLUIState >>= (\s -> runStateT start s))
 
 start :: GLUI ()
 start = do
-    
-    liftIO setupUI
-    setCallbacks
+    win <- use glWindow
+    setCallbacks win
     until_ (use (glUIState . uiQuit)) loop
-    liftIO GLFW.closeWindow
-    liftIO GLFW.terminate
+    liftIO $ GLFW.destroyWindow win
+    liftIO $ GLFW.terminate
 
     
-setCallbacks :: GLUI ()    
-setCallbacks = do 
-    -- set 2D orthogonal view inside windowSizeCallback because
-    -- any change to the Window size should result in different
-    -- OpenGL Viewport.
-    liftIO $ GLFW.windowSizeCallback $= \ size@(GL.Size w h) -> do
-        GL.viewport   $= (GL.Position 0 0, size)
-        GL.matrixMode $= GL.Projection -- ???
-        GL.loadIdentity 
-        GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
+setCallbacks :: GLFW.Window -> GLUI ()    
+setCallbacks win = do 
+    liftIO $ GLFW.setWindowSizeCallback win (Just windowSizeCallback)
+    liftIO $ GLFW.setCharCallback win (Just (\a b -> print b ))
+    return ()
    
     
 
 
 loop :: GLUI ()
 loop = do
-    t0 <- liftIO (GL.get GLFW.time)
+    win <- use glWindow
+    Just t0 <- liftIO GLFW.getTime
     ls <- use glLastStep
     lr <- use glLastRender
-    handleInput
+    handleInput win
     when ((t0-ls)>=0.5) $  do
         glLastStep .= t0
         zoomUI run
     when ((t0-lr)>=0.1) $ do
         glLastRender .= t0
-        draw
-    liftIO $ GLFW.sleep (0.01)
+        draw win
 
 drawTileArray :: [[Tile]] -> IO ()
 drawTileArray tiles = unwindWithIndicesM_ tiles drawTile
@@ -110,25 +109,34 @@ drawTile tile x y = do
           point1 = (fromIntegral $ 32*x, fromIntegral $ 32*y)::GLpoint2D
           point2 = (fromIntegral $ 32*(x+1), fromIntegral $ 32*(y+1))::GLpoint2D
 
-draw :: GLUI ()
-draw = do
+draw :: GLFW.Window -> GLUI ()
+draw win= do
     liftIO $ GL.clear [GL.ColorBuffer]
     t <- use $ glUIState . uiWorld . worldTerrain
     f <- use $ glUIState . uiCamera . _3
+    x <- use $ glUIState . uiCamera . _1
+    y <- use $ glUIState . uiCamera . _2
+    
     let floor = getFloor t f
     let w = floor ^. terrainWidth
-    liftIO $ GL.renderPrimitive GL.Quads $  
+    let p1 = (fromIntegral $ 32*x, fromIntegral $ 32*y)::GLpoint2D 
+    let p2 = (fromIntegral $ 32*(x+1), fromIntegral $ 32*(y+1))::GLpoint2D
+    liftIO $ GL.renderPrimitive GL.Quads $  do
+        -- tiles
         drawTileArray $ chunksOf w $ floor  ^. (terrainTiles . from vector)
-    liftIO GLFW.swapBuffers
+        -- focus
+        drawImage p1 p2 "focus"
+    liftIO $ GLFW.swapBuffers win
 
 
     
  
-handleInput :: GLUI ()
-handleInput = do
-    p <- liftIO $ GLFW.getKey GLFW.ESC
-    windowOpen <- liftIO $ getParam Opened
-    when ((p == GLFW.Press) || (not windowOpen)) $ glUIState . uiQuit .= True
+handleInput :: GLFW.Window -> GLUI ()
+handleInput win = do
+    liftIO $ GLFW.pollEvents
+    p <- liftIO $ GLFW.getKey win GLFW.Key'Escape
+    c <- liftIO $ GLFW.windowShouldClose win
+    when ((p == GLFW.KeyState'Pressed)||c) $ glUIState . uiQuit .= True
     
 
 
