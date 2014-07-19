@@ -6,10 +6,12 @@ import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
 import Control.Monad
 import System.IO
-import System.Exit
+import System.Exit 
 import Data.Vector.Storable (unsafeWith)
+import Control.Concurrent.STM
 import qualified Codec.Picture as JP
 
+-- Datatypes
 type GLpoint2D = (GLfloat, GLfloat)
 
 vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
@@ -21,20 +23,20 @@ texCoord2 = GL.TexCoord2
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
-windowSizeCallback :: Window -> Int -> Int -> IO ()
-windowSizeCallback win w h = do
-    prepareViewport w h
-
-prepareViewport:: Int -> Int -> IO ()
-prepareViewport w h = do
-    GL.viewport   $= (GL.Position 0 0, Size (fromIntegral w) (fromIntegral h))
-    GL.matrixMode $= GL.Projection
-    GL.loadIdentity
-    GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
-    
+-- Callbacks   
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
 
+charCallback :: TChan Char -> GLFW.Window -> Char -> IO () 
+charCallback chan win char = atomically $ writeTChan chan char
+
+keyCallback :: TChan GLFW.Key -> GLFW.Window -> GLFW.Key -> IO () 
+keyCallback chan win key = atomically $ writeTChan chan key
+
+windowSizeCallback :: Window -> Int -> Int -> IO ()
+windowSizeCallback win w h = prepareViewport w h
+
+-- UI and Window preparation  
 setupUI :: IO GLFW.Window
 setupUI = do
     GLFW.setErrorCallback (Just errorCallback)
@@ -54,7 +56,15 @@ setupUI = do
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
     return win
 
+prepareViewport:: Int -> Int -> IO ()
+prepareViewport w h = do
+    GL.viewport   $= (GL.Position 0 0, Size (fromIntegral w) (fromIntegral h))
+    GL.matrixMode $= GL.Projection
+    GL.loadIdentity
+    GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
 
+
+-- Drawing and textures
 drawImage :: GLpoint2D -> GLpoint2D -> String -> IO()
 drawImage (destX1, destY1) (destX2, destY2) tileName = do
     let tilePos = atlas tileName
@@ -69,7 +79,6 @@ drawImage (destX1, destY1) (destX2, destY2) tileName = do
             GL.texCoord $ texCoord2 (tileX/atlasW) (tileY/atlasH)
             GL.vertex   $ vertex3 destX2 destY2 0
         Nothing -> print "bad tilename"
-
 
 atlas :: String -> Maybe (GLpoint2D, GLpoint2D)
 atlas tileName =
