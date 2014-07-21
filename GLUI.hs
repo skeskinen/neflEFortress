@@ -38,20 +38,23 @@ data GLUIState = GLUIState {
     _glLastStep :: Double,
     _glLastRender :: Double,
     _glWindow :: GLFW.Window,
-    _glCharChan :: TChan Char
+    _glCharQueue :: TQueue Char,
+    _glKeyQueue :: TQueue GLFW.Key
 }
 
 simpleGLUIState :: IO GLUIState
 simpleGLUIState = do
     window <- liftIO setupUI
-    cChan <- liftIO $ newTChanIO :: IO (TChan Char)
+    cQue <- liftIO $ newTQueueIO :: IO (TQueue Char)
+    kQue <- liftIO $ newTQueueIO :: IO (TQueue GLFW.Key)
     return GLUIState {
         _glUIState = simpleUIState,
         _glCommandHandlers = M.empty,
         _glLastStep = -1,
         _glLastRender = -1,
         _glWindow = window,
-        _glCharChan = cChan
+        _glCharQueue = cQue,
+        _glKeyQueue = kQue
     }
 
 makeLenses ''GLUIState
@@ -69,9 +72,11 @@ start = do
  
 setCallbacks :: GLFW.Window -> GLUI ()    
 setCallbacks win = do 
-    cChan <- use glCharChan
+    cQue <- use glCharQueue
+    kQue <- use glKeyQueue
     liftIO $ GLFW.setWindowSizeCallback win (Just windowSizeCallback)
-    liftIO $ GLFW.setCharCallback win (Just (charCallback cChan))
+    liftIO $ GLFW.setCharCallback win (Just (charCallback cQue))
+    liftIO $ GLFW.setKeyCallback win (Just (keyCallback kQue))
     return ()
  
 loop :: GLUI ()
@@ -124,38 +129,63 @@ draw win= do
         drawTileArray $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage p1 p2 "focus"
+    
+    
+    liftIO $GL.rasterPos (GL.Vertex2 (0.5::GL.GLfloat) (0.5::GL.GLfloat))
+    --liftIO $GL.scale 0.001 0.001 (0.001::GL.GLfloat)
+    --GL.renderString GL.Roman "Test string"
     liftIO $ GLFW.swapBuffers win
 
 handleInput :: GLFW.Window -> GLUI ()
 handleInput win = do
     liftIO $ GLFW.pollEvents
     handleChars
+    handleKeys
     p <- liftIO $ GLFW.getKey win GLFW.Key'Escape
     c <- liftIO $ GLFW.windowShouldClose win
-    when ((p == GLFW.KeyState'Pressed)||c) $ glUIState . uiQuit .= True
+    when c $ glUIState . uiQuit .= True
 
 handleChars :: GLUI ()
 handleChars = do
     -- reading from the channel:
-    chan <- use glCharChan
-    emptyChan <- liftIO $ atomically $ isEmptyTChan chan
-    when (not emptyChan) $ do
-        c <- liftIO $ atomically $ readTChan chan
-        r <- charToCommand c
-        case r of
+    que <- use glCharQueue
+    emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
+    when (not emptyQueue) $ do
+        c <- liftIO $ atomically $ readTQueue que
+        case c of
+            '>' -> execString "descendCamera"
+            '<' -> execString "ascendCamera"
+            'g' -> execString "genWorld"
+            'p' -> execString "pause"
+            _ -> return()
+        handleChars
+
+handleKeys :: GLUI ()
+handleKeys = do
+    -- reading from the channel:
+    que <- use glKeyQueue
+    emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
+    when (not emptyQueue) $ do
+        k <- liftIO $ atomically $ readTQueue que
+        case k of
+            GLFW.Key'Backspace -> execString "pause"
+            GLFW.Key'Escape -> execString "quit" --hits twice/press
+            GLFW.Key'Enter -> execString "pause"
+            GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
+            GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
+            GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
+            GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
+            _ -> return()
+        handleChars
+
+
+execString :: String -> GLUI ()
+execString str = do
+    r <- return(parseCommand str)
+    case r of
             Left _ -> return ()
             Right (cmd, arg) -> do
                 zoomUI $ execCommand cmd arg
-        handleChars
-
-charToCommand :: Char -> GLUI (Either ParseError (Command, CommandArgument))
-charToCommand c =
-    case c of
-        --'>' -> return (parseCommand "descendCamera")
-        --'<' -> return (parseCommand "ascendCamera")
-        'g' -> return (parseCommand "genWorld")
-        'p' -> return (parseCommand "pause")
-        _ -> return (parseCommand "baa")
 
 zoomUI :: UI a -> GLUI a
 zoomUI = zoom glUIState

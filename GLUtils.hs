@@ -27,11 +27,14 @@ color3 = GL.Color3
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
 
-charCallback :: TChan Char -> GLFW.Window -> Char -> IO () 
-charCallback chan win char = atomically $ writeTChan chan char
+charCallback :: TQueue Char -> GLFW.Window -> Char -> IO () 
+charCallback que win char = atomically $ writeTQueue que char
 
-keyCallback :: TChan GLFW.Key -> GLFW.Window -> GLFW.Key -> IO () 
-keyCallback chan win key = atomically $ writeTChan chan key
+keyCallback :: TQueue GLFW.Key -> GLFW.Window -> GLFW.Key -> Int 
+               -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallback que win key i s mod = if (s == GLFW.KeyState'Pressed)
+    then do atomically $ writeTQueue que key
+    else return()
 
 windowSizeCallback :: Window -> Int -> Int -> IO ()
 windowSizeCallback win w h = prepareViewport w h
@@ -42,7 +45,7 @@ setupUI = do
     GLFW.setErrorCallback (Just errorCallback)
     GLFW.init
     -- open window
-    Just win <- GLFW.createWindow 800 800 "GLFW" Nothing Nothing    -- [GLFW.DisplayAlphaBits 8] GLFW.Window
+    Just win <- GLFW.createWindow 800 800 "neflEFortress" Nothing Nothing    -- [GLFW.DisplayAlphaBits 8] GLFW.Window
     GLFW.makeContextCurrent (Just win)
     -- set the color to clear background
     GL.clearColor $= Color4 0 0 0 0
