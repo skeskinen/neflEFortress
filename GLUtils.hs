@@ -1,15 +1,15 @@
 module GLUtils where 
 
-import Graphics.Rendering.OpenGL as GL
-import Graphics.UI.GLFW as GLFW
-import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
 import Control.Monad
 import System.IO
 import System.Exit 
 import Data.Vector.Storable (unsafeWith)
 import Control.Concurrent.STM
-import qualified Codec.Picture as JP
+import Graphics.Rendering.OpenGL as GL
+import Graphics.Rendering.OpenGL (($=))
+import Graphics.UI.GLFW as GLFW
+import Data.Char
 
 -- Datatypes
 type GLpoint2D = (GLfloat, GLfloat)
@@ -22,7 +22,7 @@ texCoord2 = GL.TexCoord2
  
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
-
+    
 -- Callbacks   
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
@@ -66,39 +66,7 @@ prepareViewport w h = do
     GL.loadIdentity
     GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
 
-
 -- Drawing and textures
-drawImage :: GLpoint2D -> GLpoint2D -> String -> IO()
-drawImage (destX1, destY1) (destX2, destY2) tileName = do
-    let tilePos = atlas tileName
-    case tilePos of 
-        Just ((tileX, tileY),(atlasW, atlasH)) -> do
-            GL.texCoord $ texCoord2 ((tileX-1)/atlasW) (tileY/atlasH)
-            GL.vertex   $ vertex3 destX1 destY2 0
-            GL.texCoord $ texCoord2 ((tileX-1)/atlasW) ((tileY-1)/atlasH)
-            GL.vertex   $ vertex3 destX1 destY1 0
-            GL.texCoord $ texCoord2 (tileX/atlasW) ((tileY-1)/atlasH)
-            GL.vertex   $ vertex3 destX2 destY1 0
-            GL.texCoord $ texCoord2 (tileX/atlasW) (tileY/atlasH)
-            GL.vertex   $ vertex3 destX2 destY2 0
-        Nothing -> print "bad tilename"
-
-atlas :: String -> Maybe (GLpoint2D, GLpoint2D)
-atlas tileName =
-    case tileName of 
-        "creature" -> Just ((1,1),wh)
-        "stairs" -> Just ((2,1),wh)
-        "ground" -> Just ((3,1),wh)
-        "wall" -> Just ((4,1),wh)
-        "empty" -> Just((5,1),wh)
-        "item" -> Just((6,1),wh)
-        "building" -> Just((7,1),wh)
-        "?" -> Just((8,1),wh)
-        "black" -> Just((9,1),wh)
-        "focus"-> Just((10,1),wh)
-        _ -> Nothing
-    where wh = (32,32)
-    
 loadTexture :: String -> IO ()
 loadTexture imagePath = do
     [textureName] <- GL.genObjectNames 1
@@ -115,3 +83,60 @@ loadTexture imagePath = do
                     0 (PixelData GL.RGBA UnsignedByte ptr)
         (Right _) -> do
             print "image not found"
+            
+
+atlas :: String -> Maybe (GLpoint2D, GLpoint2D)
+atlas tileName =
+    case tileName of 
+        "creature" -> Just ((1,1),wh)
+        "stairs" -> Just ((2,1),wh)
+        "ground" -> Just ((3,1),wh)
+        "wall" -> Just ((4,1),wh)
+        "empty" -> Just((5,1),wh)
+        "item" -> Just((6,1),wh)
+        "building" -> Just((7,1),wh)
+        "?" -> Just((8,1),wh)
+        "black" -> Just((9,1),wh)
+        "focus"-> Just((10,1),wh)
+        _ -> Nothing
+    where wh = (32,32)
+
+charAtlas :: Char -> Maybe (GLpoint2D, GLpoint2D)
+charAtlas c
+    | c `elem` ['0'..'9'] = Just ((1 + (fromIntegral $ digitToInt c), 32),(64,32))
+    | otherwise = Nothing
+    
+
+
+drawImage :: GLpoint2D -> GLpoint2D -> String -> IO()
+drawImage (destX1, destY1) (destX2, destY2) tileName = do
+    let tilePos = atlas tileName
+    case tilePos of 
+        Just ((tileX, tileY),(atlasW, atlasH)) -> do
+            GL.texCoord $ texCoord2 ((tileX-1)/atlasW)  (tileY/atlasH)
+            GL.vertex   $ vertex3 destX1 destY2 0
+            GL.texCoord $ texCoord2 ((tileX-1)/atlasW)  ((tileY-1)/atlasH)
+            GL.vertex   $ vertex3 destX1 destY1 0
+            GL.texCoord $ texCoord2 (tileX/atlasW)      ((tileY-1)/atlasH)
+            GL.vertex   $ vertex3 destX2 destY1 0
+            GL.texCoord $ texCoord2 (tileX/atlasW)      (tileY/atlasH)
+            GL.vertex   $ vertex3 destX2 destY2 0
+        Nothing -> print "tilename not in atlas"
+
+drawString :: GLpoint2D -> GLpoint2D -> String -> IO()
+drawString (destX, destY) (w, h) (x:xs) = do
+    let charPos = charAtlas x
+    case charPos of 
+        Just ((charX, charY),(atlasW, atlasH)) -> do
+            GL.texCoord $ texCoord2 ((charX-1)/atlasW)  (charY/atlasH)
+            GL.vertex   $ vertex3 destX         (destY + h) 0
+            GL.texCoord $ texCoord2 ((charX-1)/atlasW)  ((charY-1)/atlasH)
+            GL.vertex   $ vertex3 destX         destY       0
+            GL.texCoord $ texCoord2 (charX/atlasW)      ((charY-1)/atlasH)
+            GL.vertex   $ vertex3 (destX + w)   destY       0
+            GL.texCoord $ texCoord2 (charX/atlasW)      (charY/atlasH)
+            GL.vertex   $ vertex3 (destX + w)   (destY + h) 0
+        Nothing -> return ()
+    when (not (null xs)) (drawString ((destX + w),destY) (w,h) xs)
+
+

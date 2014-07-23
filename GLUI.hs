@@ -26,6 +26,7 @@ import Control.Concurrent.STM
 import UI
 import UIUtils
 import GLUtils
+import GLTextures
 import World
 import Terrain
 
@@ -129,11 +130,11 @@ draw win= do
         drawTileArray $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage p1 p2 "focus"
+        drawString (352, 32) (8,16) (show x)
+        drawString (352, 48) (8,16) (show y)
+        drawString (352, 64) (8,16) (show f)
     
     
-    liftIO $GL.rasterPos (GL.Vertex2 (0.5::GL.GLfloat) (0.5::GL.GLfloat))
-    --liftIO $GL.scale 0.001 0.001 (0.001::GL.GLfloat)
-    --GL.renderString GL.Roman "Test string"
     liftIO $ GLFW.swapBuffers win
 
 handleInput :: GLFW.Window -> GLUI ()
