@@ -10,6 +10,7 @@ import Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=))
 import Graphics.UI.GLFW as GLFW
 import Data.Char
+import qualified Codec.Picture as JP
 
 -- Datatypes
 type GLpoint2D = (GLfloat, GLfloat)
