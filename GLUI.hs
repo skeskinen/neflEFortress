@@ -26,7 +26,6 @@ import Control.Concurrent.STM
 import UI
 import UIUtils
 import GLUtils
-import GLTextures
 import World
 import Terrain
 
