@@ -105,6 +105,10 @@ atlas tileName =
 charAtlas :: Char -> Maybe (GLpoint2D, GLpoint2D)
 charAtlas c
     | c `elem` ['0'..'9'] = Just ((1 + (fromIntegral $ digitToInt c), 32),(64,32))
+    | c `elem` ['a'..'z'] = Just (((fromIntegral $ ord c)-86, 32),(64,32))
+    | c `elem` ['A'..'Z'] = Just (((fromIntegral $ ord c)-28, 32),(64,32))
+    | c `elem` "!#$%&'()*+,-./@" = Just (((fromIntegral $ ord c)-32, 31),(64,32))
+    | c `elem` ":;<=>?" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
     | otherwise = Nothing
     
 

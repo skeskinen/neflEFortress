@@ -129,9 +129,9 @@ draw win= do
         drawTileArray $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage p1 p2 "focus"
-        drawString (352, 32) (8,16) (show x)
-        drawString (352, 48) (8,16) (show y)
-        drawString (352, 64) (8,16) (show f)
+        drawString (352, 32) (8,16) ("x: " ++ (show x))
+        drawString (352, 48) (8,16) ("y: " ++ (show y))
+        drawString (352, 64) (8,16) ("z: " ++ (show f))
     
     
     liftIO $ GLFW.swapBuffers win
