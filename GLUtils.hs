@@ -85,9 +85,8 @@ loadTexture imagePath = do
         (Right _) -> do
             print "image not found"
             
-
-atlas :: String -> Maybe (GLpoint2D, GLpoint2D)
-atlas tileName =
+tileAtlas :: String -> Maybe (GLpoint2D, GLpoint2D)
+tileAtlas tileName =
     case tileName of 
         "creature" -> Just ((1,1),wh)
         "stairs" -> Just ((2,1),wh)
@@ -104,44 +103,33 @@ atlas tileName =
 
 charAtlas :: Char -> Maybe (GLpoint2D, GLpoint2D)
 charAtlas c
-    | c `elem` ['0'..'9'] = Just ((1 + (fromIntegral $ digitToInt c), 32),(64,32))
+    | c `elem` ['0'..'9'] = Just (((fromIntegral $ digitToInt c)+1, 32),(64,32))
     | c `elem` ['a'..'z'] = Just (((fromIntegral $ ord c)-86, 32),(64,32))
     | c `elem` ['A'..'Z'] = Just (((fromIntegral $ ord c)-28, 32),(64,32))
     | c `elem` "!#$%&'()*+,-./@" = Just (((fromIntegral $ ord c)-32, 31),(64,32))
     | c `elem` ":;<=>?" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
     | otherwise = Nothing
-    
-
-
-drawImage :: GLpoint2D -> GLpoint2D -> String -> IO()
-drawImage (destX1, destY1) (destX2, destY2) tileName = do
-    let tilePos = atlas tileName
-    case tilePos of 
-        Just ((tileX, tileY),(atlasW, atlasH)) -> do
-            GL.texCoord $ texCoord2 ((tileX-1)/atlasW)  (tileY/atlasH)
-            GL.vertex   $ vertex3 destX1 destY2 0
-            GL.texCoord $ texCoord2 ((tileX-1)/atlasW)  ((tileY-1)/atlasH)
-            GL.vertex   $ vertex3 destX1 destY1 0
-            GL.texCoord $ texCoord2 (tileX/atlasW)      ((tileY-1)/atlasH)
-            GL.vertex   $ vertex3 destX2 destY1 0
-            GL.texCoord $ texCoord2 (tileX/atlasW)      (tileY/atlasH)
-            GL.vertex   $ vertex3 destX2 destY2 0
-        Nothing -> print "tilename not in atlas"
+   
+drawImage :: String -> GLpoint2D -> GLpoint2D -> IO()
+drawImage tileName = drawGeneric (tileAtlas tileName)
 
 drawString :: GLpoint2D -> GLpoint2D -> String -> IO()
-drawString (destX, destY) (w, h) (x:xs) = do
-    let charPos = charAtlas x
-    case charPos of 
-        Just ((charX, charY),(atlasW, atlasH)) -> do
-            GL.texCoord $ texCoord2 ((charX-1)/atlasW)  (charY/atlasH)
-            GL.vertex   $ vertex3 destX         (destY + h) 0
-            GL.texCoord $ texCoord2 ((charX-1)/atlasW)  ((charY-1)/atlasH)
-            GL.vertex   $ vertex3 destX         destY       0
-            GL.texCoord $ texCoord2 (charX/atlasW)      ((charY-1)/atlasH)
-            GL.vertex   $ vertex3 (destX + w)   destY       0
-            GL.texCoord $ texCoord2 (charX/atlasW)      (charY/atlasH)
-            GL.vertex   $ vertex3 (destX + w)   (destY + h) 0
-        Nothing -> return ()
-    when (not (null xs)) (drawString ((destX + w),destY) (w,h) xs)
+drawString (destX, destY) (w, h) (c:cs) = do
+    drawGeneric (charAtlas c) (destX, destY) (w, h)
+    when (not (null cs)) (drawString ((destX + w),destY) (w,h) cs)
 
+drawGeneric :: Maybe (GLpoint2D, GLpoint2D) 
+    -> GLpoint2D -> GLpoint2D -> IO()
+drawGeneric imagePos (destX, destY) (w, h) =
+    case imagePos of 
+        Just ((imageX, imageY),(atlasW, atlasH)) -> do
+            GL.texCoord $ texCoord2 ((imageX-1)/atlasW)  (imageY/atlasH)
+            GL.vertex   $ vertex3 destX         (destY + h) 0
+            GL.texCoord $ texCoord2 ((imageX-1)/atlasW)  ((imageY-1)/atlasH)
+            GL.vertex   $ vertex3 destX         destY       0
+            GL.texCoord $ texCoord2 (imageX/atlasW)      ((imageY-1)/atlasH)
+            GL.vertex   $ vertex3 (destX + w)   destY       0
+            GL.texCoord $ texCoord2 (imageX/atlasW)      (imageY/atlasH)
+            GL.vertex   $ vertex3 (destX + w)   (destY + h) 0
+        Nothing -> return () 
 
