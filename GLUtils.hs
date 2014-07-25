@@ -49,7 +49,7 @@ charCallback que win char = atomically $ writeTQueue que char
 
 keyCallback :: TQueue GLFW.Key -> GLFW.Window -> GLFW.Key -> Int 
                -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback que win key i s mod = if (not $ s == GLFW.KeyState'Released)
+keyCallback que win key i s mod = if (s /= GLFW.KeyState'Released)
     then do atomically $ writeTQueue que key
     else return()
 

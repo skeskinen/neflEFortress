@@ -98,22 +98,26 @@ loop = do
         draw
     liftIO $ threadDelay 100000 
 
-drawTileArray :: GLpoint2D -> [[Tile]] -> IO ()
-drawTileArray res tiles = unwindWithIndicesM_ tiles (drawTile res)
+drawTileArray :: GLpoint2D -> (Int,Int) -> (Int,Int) -> [[Tile]] -> IO ()
+drawTileArray res mins maxs tiles = unwindWithIndicesM_ tiles (drawTile res mins maxs)
 
-drawTile :: GLpoint2D -> Tile -> Int -> Int -> IO ()
-drawTile (rw,rh) tile x y = do
-    case (tile ^. tileType) of 
-        TileGround -> drawIm "ground"
-        TileWall _ -> drawIm "wall"
-        TileStairs -> drawIm "stairs"
-        TileEmpty -> drawIm "empty"
-        otherwise -> drawIm "empty"
-    when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
-    when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
-    when ((not . IS.null) $ tile ^. tileCreatures) $ drawIm "creature2" 
-    where drawIm = \im -> drawImage im point1 (rw,rh)
-          point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
+drawTile :: GLpoint2D -> (Int,Int) -> (Int,Int) -> Tile -> Int -> Int -> IO ()
+drawTile (rw,rh) (minX,minY) (maxX, maxY) tile x y =
+    when ((x>=minX)&&(x<=maxX)&&(y>=minY)&&(y<=maxY)) $ do
+        case (tile ^. tileType) of 
+            TileGround -> drawIm "ground"
+            TileWall _ -> drawIm "wall"
+            TileStairs -> drawIm "stairs"
+            TileEmpty -> drawIm "empty"
+            otherwise -> drawIm "empty"
+        when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
+        when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
+        when ((not . IS.null) $ tile ^. tileCreatures) $ do
+            GL.color $ color3 0 1 0
+            drawIm "creature2"
+            GL.color $ color3 1 1 1
+        where drawIm = \im -> drawImage im point1 (rw,rh)
+              point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
 
 draw :: GLUI ()
 draw = do
@@ -123,7 +127,10 @@ draw = do
     x <- use $ glUIState . uiCamera . _1
     y <- use $ glUIState . uiCamera . _2
     (rw,rh) <- use $ glResolution
+    
     win <- use glWindow
+    (winW, winH) <- liftIO $ GLFW.getWindowSize win
+    let (bx,by) = getBorders (winW, winH) (rw, rh)
     
     let floor = getFloor t f
     let w = floor ^. terrainWidth
@@ -132,16 +139,18 @@ draw = do
     menu <- use glMenu
     liftIO $ GL.renderPrimitive GL.Quads $  do
         -- tiles
-        drawTileArray (rw, rh) $ chunksOf w $ floor  ^. (terrainTiles . from vector)
+        drawTileArray (rw, rh) (0,0) (bx-1,by-1) $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage "focus" focusPoint (rw,rh)
         -- coordinates
-        let drawCoor = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral h))   (rw/2,rh)
+        let drawCoor = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral (min h by)))   (rw/2,rh)
         drawCoor ("x: " ++ show x) 1    
         drawCoor ("y: " ++ show y) 4
         drawCoor ("z: " ++ show f) 7
+        drawCoor ("w: " ++ show winW) 10
+        drawCoor ("h: " ++ show winH) 15
         -- menu
-        drawMenu menu (rw*(fromIntegral w),rh) (rw/2,rh)
+        drawMenu menu (rw*(fromIntegral (min bx w)),rh) (rw/2,rh)
     liftIO $ GLFW.swapBuffers win
 
 handleInput :: GLUI ()
@@ -202,6 +211,9 @@ execString str = do
 zoomUI :: UI a -> GLUI a
 zoomUI = zoom glUIState
 
-    
+getBorders :: (Int,Int) -> GLpoint2D -> (Int,Int)
+getBorders (winW,winH) (rw,rh) =
+    ((+(-10)) . floor $ ((fromIntegral winW)/rw),
+     (+(-1)). floor $ ((fromIntegral winH)/rh))
  
  
