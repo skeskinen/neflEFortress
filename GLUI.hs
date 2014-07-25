@@ -129,18 +129,19 @@ draw = do
     let w = floor ^. terrainWidth
     let h = floor ^. terrainHeight
     let focusPoint = (rw*(fromIntegral x), rh*(fromIntegral y))
+    menu <- use glMenu
     liftIO $ GL.renderPrimitive GL.Quads $  do
         -- tiles
         drawTileArray (rw, rh) $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage "focus" focusPoint (rw,rh)
         -- coordinates
-        let drawCoor = \string xPos -> drawString (string ++ (show x))  (rw*xPos, rh*(fromIntegral h))   (rw/2,rh)
-        drawCoor "x: " 1    
-        drawCoor "y: " 4
-        drawCoor "z: " 7
+        let drawCoor = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral h))   (rw/2,rh)
+        drawCoor ("x: " ++ show x) 1    
+        drawCoor ("y: " ++ show y) 4
+        drawCoor ("z: " ++ show f) 7
         -- menu
-        drawMenu gameMenu (rw*(fromIntegral w)+rw,0) (rw/2,rh)
+        drawMenu menu (rw*(fromIntegral w),rh) (rw/2,rh)
     liftIO $ GLFW.swapBuffers win
 
 handleInput :: GLUI ()
@@ -160,11 +161,15 @@ handleChars = do
     emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
     when (not emptyQueue) $ do
         c <- liftIO $ atomically $ readTQueue que
+        men <- use glMenu
+        let m = moveSel men 1
         case c of
             '>' -> execString "descendCamera"
             '<' -> execString "ascendCamera"
             'g' -> execString "genWorld"
             'p' -> execString "pause"
+            '+' -> glMenu .= moveSel men 1
+            '-' -> glMenu .= moveSel men (-1)
             _ -> return()
         handleChars
 

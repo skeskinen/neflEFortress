@@ -24,16 +24,21 @@ texCoord2 = GL.TexCoord2
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
-type Menu = [String]
+-- Menu
+type Menu = ([String],Int)
 
 gameMenu :: Menu
-gameMenu = [
-    "",
+gameMenu = ([
+    "+/-: move selector",
     "p: pause",
     "arrows: move focus",
-    "<>: up/down",
+    "</>: up/down",
     "g: restart"
-    ]
+    ],2)
+
+moveSel :: Menu -> Int -> Menu
+moveSel (m,-1) _ = (m,-1)
+moveSel (m,s) x = (m,(s+x)`mod`(length m))
     
 -- Callbacks   
 errorCallback :: GLFW.ErrorCallback
@@ -44,7 +49,7 @@ charCallback que win char = atomically $ writeTQueue que char
 
 keyCallback :: TQueue GLFW.Key -> GLFW.Window -> GLFW.Key -> Int 
                -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback que win key i s mod = if (s == GLFW.KeyState'Pressed)
+keyCallback que win key i s mod = if (not $ s == GLFW.KeyState'Released)
     then do atomically $ writeTQueue que key
     else return()
 
@@ -98,7 +103,8 @@ loadTexture imagePath = do
             
 tileAtlas :: String -> Maybe (GLpoint2D, GLpoint2D)
 tileAtlas tileName =
-    case tileName of 
+    case tileName of
+        "white" -> Just ((1,1),wh)
         "stairs" -> Just ((2,1),wh)
         "ground" -> Just ((3,1),wh)
         "wall" -> Just ((4,1),wh)
@@ -123,10 +129,15 @@ charAtlas c
     | otherwise = Nothing
 
 drawMenu :: Menu -> GLpoint2D -> GLpoint2D -> IO()
-drawMenu [] _ _ = return()
-drawMenu (x:xs) (destX, destY) (w, h) = do
-    drawString x (destX, destY) (w,h)
-    drawMenu xs (destX, destY+h) (w,h)
+drawMenu ([],_) _ _ = return()
+drawMenu ((x:xs),i) (destX, destY) (w, h) = do
+    if i == 0
+        then do 
+            GL.color $ color3 0.5 1 0.5
+            drawString ('@':x) (destX, destY) (w,h)
+            GL.color $ color3 1 1 1
+        else drawString (' ':x) (destX, destY) (w,h)
+    drawMenu (xs,i-1) (destX, destY+h) (w,h)
 
 drawImage :: String -> GLpoint2D -> GLpoint2D -> IO()
 drawImage tileName = drawGeneric (tileAtlas tileName)
