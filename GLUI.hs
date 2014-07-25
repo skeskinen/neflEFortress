@@ -32,6 +32,7 @@ import Terrain
 
 type GLUI = StateT GLUIState IO
 
+    
 data GLUIState = GLUIState {
     _glUIState :: UIState,
     _glCommandHandlers :: M.Map String (GLUI ()),
@@ -40,7 +41,8 @@ data GLUIState = GLUIState {
     _glWindow :: GLFW.Window,
     _glCharQueue :: TQueue Char,
     _glKeyQueue :: TQueue GLFW.Key,
-    _glResolution :: GLpoint2D
+    _glResolution :: GLpoint2D,
+    _glMenu :: Menu
 }
 
 simpleGLUIState :: IO GLUIState
@@ -56,7 +58,8 @@ simpleGLUIState = do
         _glWindow = window,
         _glCharQueue = cQue,
         _glKeyQueue = kQue,
-        _glResolution = (32,32)
+        _glResolution = (32,32),
+        _glMenu = gameMenu
     }
 
 makeLenses ''GLUIState
@@ -108,7 +111,7 @@ drawTile (rw,rh) tile x y = do
         otherwise -> drawIm "empty"
     when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
     when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
-    when ((not . IS.null) $ tile ^. tileCreatures) $ drawIm "creature" 
+    when ((not . IS.null) $ tile ^. tileCreatures) $ drawIm "creature2" 
     where drawIm = \im -> drawImage im point1 (rw,rh)
           point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
 
@@ -124,17 +127,20 @@ draw = do
     
     let floor = getFloor t f
     let w = floor ^. terrainWidth
+    let h = floor ^. terrainHeight
     let focusPoint = (rw*(fromIntegral x), rh*(fromIntegral y))
     liftIO $ GL.renderPrimitive GL.Quads $  do
         -- tiles
         drawTileArray (rw, rh) $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage "focus" focusPoint (rw,rh)
-        -- text
-        drawString (rw*((fromIntegral w)+1), rh)      (rw/4,rh/2)     ("x: " ++ (show x))
-        drawString (rw*((fromIntegral w)+1), rh*1.5)  (rw/4,rh/2)     ("y: " ++ (show y))
-        drawString (rw*((fromIntegral w)+1), rh*2)    (rw/4,rh/2)     ("z: " ++ (show f))
-    
+        -- coordinates
+        let drawCoor = \string xPos -> drawString (string ++ (show x))  (rw*xPos, rh*(fromIntegral h))   (rw/2,rh)
+        drawCoor "x: " 1    
+        drawCoor "y: " 4
+        drawCoor "z: " 7
+        -- menu
+        drawMenu gameMenu (rw*(fromIntegral w)+rw,0) (rw/2,rh)
     liftIO $ GLFW.swapBuffers win
 
 handleInput :: GLUI ()

@@ -23,6 +23,17 @@ texCoord2 = GL.TexCoord2
  
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
+
+type Menu = [String]
+
+gameMenu :: Menu
+gameMenu = [
+    "",
+    "p: pause",
+    "arrows: move focus",
+    "<>: up/down",
+    "g: restart"
+    ]
     
 -- Callbacks   
 errorCallback :: GLFW.ErrorCallback
@@ -88,7 +99,6 @@ loadTexture imagePath = do
 tileAtlas :: String -> Maybe (GLpoint2D, GLpoint2D)
 tileAtlas tileName =
     case tileName of 
-        "creature" -> Just ((1,1),wh)
         "stairs" -> Just ((2,1),wh)
         "ground" -> Just ((3,1),wh)
         "wall" -> Just ((4,1),wh)
@@ -98,6 +108,8 @@ tileAtlas tileName =
         "?" -> Just((8,1),wh)
         "black" -> Just((9,1),wh)
         "focus"-> Just((10,1),wh)
+        "creature1" -> Just ((1,2),wh)
+        "creature2" -> Just ((2,2),wh)
         _ -> Nothing
     where wh = (32,32)
 
@@ -106,18 +118,25 @@ charAtlas c
     | c `elem` ['0'..'9'] = Just (((fromIntegral $ digitToInt c)+1, 32),(64,32))
     | c `elem` ['a'..'z'] = Just (((fromIntegral $ ord c)-86, 32),(64,32))
     | c `elem` ['A'..'Z'] = Just (((fromIntegral $ ord c)-28, 32),(64,32))
-    | c `elem` "!#$%&'()*+,-./@" = Just (((fromIntegral $ ord c)-32, 31),(64,32))
-    | c `elem` ":;<=>?" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
+    | c `elem` "!#$%&'()*+,-./" = Just (((fromIntegral $ ord c)-32, 31),(64,32))
+    | c `elem` ":;<=>?@" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
     | otherwise = Nothing
-   
+
+drawMenu :: Menu -> GLpoint2D -> GLpoint2D -> IO()
+drawMenu [] _ _ = return()
+drawMenu (x:xs) (destX, destY) (w, h) = do
+    drawString x (destX, destY) (w,h)
+    drawMenu xs (destX, destY+h) (w,h)
+
 drawImage :: String -> GLpoint2D -> GLpoint2D -> IO()
 drawImage tileName = drawGeneric (tileAtlas tileName)
 
-drawString :: GLpoint2D -> GLpoint2D -> String -> IO()
-drawString (destX, destY) (w, h) (c:cs) = do
+drawString :: String -> GLpoint2D -> GLpoint2D  -> IO()
+drawString [] _ _ = return()
+drawString (c:cs) (destX, destY) (w, h) = do
     drawGeneric (charAtlas c) (destX, destY) (w, h)
-    when (not (null cs)) (drawString ((destX + w),destY) (w,h) cs)
-
+    drawString cs ((destX + w),destY) (w,h)
+    
 drawGeneric :: Maybe (GLpoint2D, GLpoint2D) 
     -> GLpoint2D -> GLpoint2D -> IO()
 drawGeneric imagePos (destX, destY) (w, h) =
