@@ -55,13 +55,3 @@ executable neflEFortress-ncurses
     other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP
     build-depends:      base >=4.7 && <4.8, containers, lens, ansi-terminal, 
         mtl, vector, parsec, pqueue, split
-
-Test-Suite test-quickcheck
-    type: exitcode-stdio-1.0
-    hs-source-dirs:     ./ Test
-    main-is:            tests.hs
-    default-language:   Haskell2010
-    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP
-    build-depends:      base >=4.7 && <4.8, containers, lens, ansi-terminal, 
-        mtl, vector, parsec, pqueue, split
-    build-depends:      QuickCheck >= 2.7 && <= 2.8
