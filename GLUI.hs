@@ -214,16 +214,25 @@ defaultBindings k =do
             GLFW.Key'Enter -> do when writing (execString text)
                                  startWriting
             GLFW.Key'Backspace -> if writing then removeChar else return()
-            GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
-            GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
-            GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
-            GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
+            GLFW.Key'Up -> moveFocus 0 (-1) 0
+            GLFW.Key'Down -> moveFocus 0 1 0
+            GLFW.Key'Right -> moveFocus 1 0 0 
+            GLFW.Key'Left -> moveFocus (-1) 0 0
+            GLFW.Key'Pad1 -> moveFocus (-1) 1 0
+            GLFW.Key'Pad2 -> moveFocus 0 1 0
+            GLFW.Key'Pad3 -> moveFocus 1 1 0
+            GLFW.Key'Pad4 -> moveFocus (-1) 0 0
+            GLFW.Key'Pad5 -> execString "pause"
+            GLFW.Key'Pad6 -> moveFocus 1 0 0
+            GLFW.Key'Pad7 -> moveFocus (-1) (-1) 0
+            GLFW.Key'Pad8 -> moveFocus 0 (-1) 0
+            GLFW.Key'Pad9 -> moveFocus 1 (-1) 0
             _ -> return()
         CKey c -> do if (writing) 
                         then writeChar c
                         else case c of
-                                '>' -> execString "descendCamera"
-                                '<' -> execString "ascendCamera"
+                                '>' -> moveFocus 0 0 1
+                                '<' -> moveFocus 0 0 (-1)
                                 'g' -> execString "genWorld"
                                 'p' -> execString "pause"
                                 '+' -> glMenu .= moveSel men 1
@@ -250,6 +259,7 @@ gmBindings k = case k of
                   glMenu .= moveSel men (-1)
         _ -> return()
 
+------ writing ------
 writeChar :: Char -> GLUI()
 writeChar c = do
     (b, s) <- use glWriteInput
@@ -292,6 +302,18 @@ selectMenu = do
         then return()
         else act !! i
 
+------ stuff ------
+moveFocus :: Int -> Int -> Int -> GLUI()
+moveFocus dx dy dz = do
+    mx <- use $ glUIState . uiWorld . worldTerrain . terrainWidth
+    my <- use $ glUIState . uiWorld . worldTerrain . terrainHeight
+    mz <- use $ glUIState . uiWorld . worldTerrain . terrainDepth
+    x <- use $ glUIState . uiCamera . _1
+    y <- use $ glUIState . uiCamera . _2
+    z <- use $ glUIState . uiCamera . _3
+    glUIState . uiCamera . _1 .= (x+dx)`mod`mx
+    glUIState . uiCamera . _2 .= (y+dy)`mod`my
+    glUIState . uiCamera . _3 .= (z+dz)`mod`mz
 
 execString :: String -> GLUI ()
 execString str = do
