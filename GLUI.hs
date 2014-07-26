@@ -16,7 +16,7 @@ import qualified Data.IntSet as IS
 import Text.ParserCombinators.Parsec
 
 import qualified Graphics.Rendering.OpenGL as GL
-import Graphics.UI.GLFW as GLFW
+import qualified Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
 import System.Exit
@@ -43,7 +43,8 @@ data GLUIState = GLUIState {
     _glMenu :: Menu,
     _glMenuActions :: [GLUI()],
     _glBindings :: Button -> GLUI(),
-    _glDrawMode :: DrawMode
+    _glDrawMode :: DrawMode,
+    _glWriteInput :: (Bool, String)
 }
 
 simpleGLUIState :: IO GLUIState
@@ -61,7 +62,8 @@ simpleGLUIState = do
         _glMenu = defaultMenu,
         _glMenuActions = [],
         _glBindings = \k -> return(),
-        _glDrawMode = GameMode
+        _glDrawMode = GameMode,
+        _glWriteInput = (False,"")
     }
     
 makeLenses ''GLUIState
@@ -122,6 +124,8 @@ gameRender = do
     (winW, winH) <- liftIO $ GLFW.getWindowSize win
     let (bx,by) = getBorders (winW, winH) (rw, rh)
     
+    (writing,text) <- use glWriteInput
+    
     let floor = getFloor t f
     let w = floor ^. terrainWidth
     let h = floor ^. terrainHeight
@@ -132,13 +136,16 @@ gameRender = do
         drawTileArray (rw, rh) (0,0) (bx-1,by-1) $ chunksOf w $ floor  ^. (terrainTiles . from vector)
         -- focus
         drawImage "focus" focusPoint (rw,rh)
-        -- coordinates
-        let drawCoor = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral (min h by)))   (rw/2,rh)
-        drawCoor ("x: " ++ show x) 1    
-        drawCoor ("y: " ++ show y) 4
-        drawCoor ("z: " ++ show f) 7
-        drawCoor ("w: " ++ show winW) 10
-        drawCoor ("h: " ++ show winH) 15
+        -- bottom
+        let drawBot = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral (min h by)))   (rw/2,rh)
+        if writing 
+            then drawBot ("command: " ++ text) 1 
+            else do
+                drawBot ("x: " ++ show x) 1    
+                drawBot ("y: " ++ show y) 4
+                drawBot ("z: " ++ show f) 7
+                drawBot ("w: " ++ show winW) 10
+                drawBot ("h: " ++ show winH) 15
         -- menu
         drawMenu menu (rw*(fromIntegral (min bx w)),rh) (rw/2,rh)
     liftIO $ GLFW.swapBuffers win
@@ -195,47 +202,69 @@ handleKeys = do
         handleKeys
 
 defaultBindings ::  Button -> GLUI ()
-defaultBindings k = case k of
-            BKey b -> case b of
-                GLFW.Key'Backspace -> execString "pause" --hits twice/press
-                GLFW.Key'Escape -> execString "quit"
-                GLFW.Key'Tab -> toGameMenu
-                GLFW.Key'Enter -> execString "pause"
-                GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
-                GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
-                GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
-                GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
-                _ -> return()
-            CKey c -> case c of
-                '>' -> execString "descendCamera"
-                '<' -> execString "ascendCamera"
-                'g' -> execString "genWorld"
-                'p' -> execString "pause"
-                '+' -> do men <- use glMenu
-                          glMenu .= moveSel men 1
-                '-' -> do men <- use glMenu
-                          glMenu .= moveSel men (-1)
-                _ -> return()
+defaultBindings k =do
+    men <- use glMenu
+    (writing,text) <- use glWriteInput
+    case k of
+        BKey b -> case b of
+            GLFW.Key'Escape -> if writing 
+                                  then endWriting
+                                  else execString "quit"
+            GLFW.Key'Tab -> toGameMenu
+            GLFW.Key'Enter -> do when writing (execString text)
+                                 startWriting
+            GLFW.Key'Backspace -> if writing then removeChar else return()
+            GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
+            GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
+            GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
+            GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
+            _ -> return()
+        CKey c -> do if (writing) 
+                        then writeChar c
+                        else case c of
+                                '>' -> execString "descendCamera"
+                                '<' -> execString "ascendCamera"
+                                'g' -> execString "genWorld"
+                                'p' -> execString "pause"
+                                '+' -> glMenu .= moveSel men 1
+                                '-' -> glMenu .= moveSel men (-1)
+                                _ -> return()
 
 gmBindings ::  Button -> GLUI ()
 gmBindings k = case k of
-            BKey b -> case b of
-                GLFW.Key'Enter -> selectMenu
-                GLFW.Key'Escape -> execString "quit"
-                GLFW.Key'Tab -> toDefaultMenu
-                GLFW.Key'Up -> do 
-                    men <- use glMenu
-                    glMenu .= moveSel men 1
-                GLFW.Key'Down -> do
-                    men <- use glMenu
-                    glMenu .= moveSel men (-1)
-                _ -> return()
-            CKey c -> case c of
-                '+' -> do men <- use glMenu
-                          glMenu .= moveSel men 1
-                '-' -> do men <- use glMenu
-                          glMenu .= moveSel men (-1)
-                _ -> return()
+    BKey b -> case b of
+        GLFW.Key'Enter -> selectMenu
+        GLFW.Key'Escape -> execString "quit"
+        GLFW.Key'Tab -> toDefaultMenu
+        GLFW.Key'Up -> do 
+            men <- use glMenu
+            glMenu .= moveSel men 1
+        GLFW.Key'Down -> do
+            men <- use glMenu
+            glMenu .= moveSel men (-1)
+        _ -> return()
+    CKey c -> case c of
+        '+' -> do men <- use glMenu
+                  glMenu .= moveSel men 1
+        '-' -> do men <- use glMenu
+                  glMenu .= moveSel men (-1)
+        _ -> return()
+
+writeChar :: Char -> GLUI()
+writeChar c = do
+    (b, s) <- use glWriteInput
+    glWriteInput .= (b,s++[c])
+
+removeChar :: GLUI()
+removeChar = do
+    (b, s) <- use glWriteInput
+    when (not (null s)) $ glWriteInput .= (b,init s)
+    
+endWriting :: GLUI()
+endWriting = glWriteInput .= (False,"")
+
+startWriting :: GLUI()
+startWriting =  glWriteInput .= (True,"")
 
 ------ menus ------
 toGameMenu :: GLUI()

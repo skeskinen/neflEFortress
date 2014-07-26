@@ -32,10 +32,11 @@ type Menu = ([String],Int)
 defaultMenu :: Menu
 defaultMenu = ([
     "Tab: game menu",
+    "Enter: write command",
+    "g: restart",
     "p: pause",
     "arrows: move focus",
-    "</>: up/down",
-    "g: restart"
+    "</>: up/down"
     ],-1)
 
 gameMenu :: Menu
