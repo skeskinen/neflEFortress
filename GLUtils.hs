@@ -12,7 +12,7 @@ import Graphics.UI.GLFW as GLFW
 import Data.Char
 import qualified Codec.Picture as JP
 
--- Datatypes
+------ datatypes ------
 type GLpoint2D = (GLfloat, GLfloat)
 
 vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
@@ -25,23 +25,31 @@ color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
 data Button = BKey GLFW.Key | CKey Char
--- Menu
-type Menu = ([String],Int)
+data DrawMode = BigMenuMode | GameMode
 
-gameMenu :: Menu
-gameMenu = ([
-    "+/-: move selector",
+type Menu = ([String],Int)
+------ menu ------
+defaultMenu :: Menu
+defaultMenu = ([
+    "Tab: game menu",
     "p: pause",
     "arrows: move focus",
     "</>: up/down",
     "g: restart"
-    ],2)
+    ],-1)
 
+gameMenu :: Menu
+gameMenu =  ([
+    "Return",
+    "Quit"
+    ],0)
+
+    
 moveSel :: Menu -> Int -> Menu
 moveSel (m,-1) _ = (m,-1)
 moveSel (m,s) x = (m,(s+x)`mod`(length m))
     
--- Callbacks   
+------ callbacks ------
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
 
@@ -57,7 +65,7 @@ keyCallback que win key i s mod = if (s /= GLFW.KeyState'Released)
 windowSizeCallback :: Window -> Int -> Int -> IO ()
 windowSizeCallback win w h = prepareViewport w h
 
--- UI and Window preparation  
+------ UI and Window preparation ------
 setupUI :: IO GLFW.Window
 setupUI = do
     GLFW.setErrorCallback (Just errorCallback)
@@ -84,7 +92,7 @@ prepareViewport w h = do
     GL.loadIdentity
     GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
 
--- Drawing and textures
+------ textures ------
 loadTexture :: String -> IO ()
 loadTexture imagePath = do
     [textureName] <- GL.genObjectNames 1
@@ -129,6 +137,7 @@ charAtlas c
     | c `elem` ":;<=>?@" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
     | otherwise = Nothing
 
+------ drawing ------
 drawMenu :: Menu -> GLpoint2D -> GLpoint2D -> IO()
 drawMenu ([],_) _ _ = return()
 drawMenu ((x:xs),i) (destX, destY) (w, h) = do

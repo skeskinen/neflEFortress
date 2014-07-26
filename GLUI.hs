@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
 module GLUI (newGLUI) where
 
-import Control.Applicative
 import Data.Maybe
 import Control.Lens
 import Control.Lens.Zoom
 import System.Environment
 import Control.Monad
 import Control.Monad.State
+import Control.Applicative
 import Data.List
 import Data.List.Split (chunksOf)
 import Data.Vector.Lens
@@ -32,7 +32,6 @@ import Terrain
 
 type GLUI = StateT GLUIState IO
 
-    
 data GLUIState = GLUIState {
     _glUIState :: UIState,
     _glCommandHandlers :: M.Map String (GLUI ()),
@@ -42,7 +41,9 @@ data GLUIState = GLUIState {
     _glKeyQueue :: TQueue Button,
     _glResolution :: GLpoint2D,
     _glMenu :: Menu,
-    _glKeyHandler :: Button -> GLUI()
+    _glMenuActions :: [GLUI()],
+    _glBindings :: Button -> GLUI(),
+    _glDrawMode :: DrawMode
 }
 
 simpleGLUIState :: IO GLUIState
@@ -57,8 +58,10 @@ simpleGLUIState = do
         _glWindow = window,
         _glKeyQueue = kQue,
         _glResolution = (32,32),
-        _glMenu = gameMenu,
-        _glKeyHandler = \k -> return()
+        _glMenu = defaultMenu,
+        _glMenuActions = [],
+        _glBindings = \k -> return(),
+        _glDrawMode = GameMode
     }
     
 makeLenses ''GLUIState
@@ -74,14 +77,14 @@ start = do
     liftIO $ GLFW.destroyWindow win
     liftIO $ GLFW.terminate
 
--- sets various callbacks and a default key handler    
+-- sets various callbacks and bindings    
 setCallbacks :: GLFW.Window -> GLUI ()    
 setCallbacks win = do
     kQue <- use glKeyQueue
     liftIO $ GLFW.setWindowSizeCallback win (Just windowSizeCallback)
     liftIO $ GLFW.setCharCallback win (Just (charCallback kQue))
     liftIO $ GLFW.setKeyCallback win (Just (keyCallback kQue))
-    glKeyHandler .= normalKeyHandler
+    glBindings .= defaultBindings
     return ()
  
 loop :: GLUI ()
@@ -98,36 +101,23 @@ loop = do
         draw
     liftIO $ threadDelay 100000 
 
-drawTileArray :: GLpoint2D -> (Int,Int) -> (Int,Int) -> [[Tile]] -> IO ()
-drawTileArray res mins maxs tiles = unwindWithIndicesM_ tiles (drawTile res mins maxs)
-
-drawTile :: GLpoint2D -> (Int,Int) -> (Int,Int) -> Tile -> Int -> Int -> IO ()
-drawTile (rw,rh) (minX,minY) (maxX, maxY) tile x y =
-    when ((x>=minX)&&(x<=maxX)&&(y>=minY)&&(y<=maxY)) $ do
-        case (tile ^. tileType) of 
-            TileGround -> drawIm "ground"
-            TileWall _ -> drawIm "wall"
-            TileStairs -> drawIm "stairs"
-            TileEmpty -> drawIm "empty"
-            otherwise -> drawIm "empty"
-        when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
-        when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
-        when ((not . IS.null) $ tile ^. tileCreatures) $ do
-            GL.color $ color3 0 1 0
-            drawIm "creature2"
-            GL.color $ color3 1 1 1
-        where drawIm = \im -> drawImage im point1 (rw,rh)
-              point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
-
+------ drawing ------
 draw :: GLUI ()
 draw = do
+    mode <- use glDrawMode
+    case mode of 
+        GameMode -> gameRender
+        BigMenuMode -> bigMenuRender
+
+gameRender :: GLUI()
+gameRender = do
     liftIO $ GL.clear [GL.ColorBuffer]
     t <- use $ glUIState . uiWorld . worldTerrain
     f <- use $ glUIState . uiCamera . _3
     x <- use $ glUIState . uiCamera . _1
     y <- use $ glUIState . uiCamera . _2
-    (rw,rh) <- use $ glResolution
     
+    (rw,rh) <- use $ glResolution
     win <- use glWindow
     (winW, winH) <- liftIO $ GLFW.getWindowSize win
     let (bx,by) = getBorders (winW, winH) (rw, rh)
@@ -153,31 +143,63 @@ draw = do
         drawMenu menu (rw*(fromIntegral (min bx w)),rh) (rw/2,rh)
     liftIO $ GLFW.swapBuffers win
 
+bigMenuRender :: GLUI()
+bigMenuRender = do
+    liftIO $ GL.clear [GL.ColorBuffer]
+    (rw,rh) <- use $ glResolution
+    win <- use glWindow
+    (winW, winH) <- liftIO $ GLFW.getWindowSize win
+    menu <- use glMenu
+    liftIO $ GL.renderPrimitive GL.Quads $  do
+        drawMenu menu ((fromIntegral winW)/3,rh*2) (rw/2,rh)
+    liftIO $ GLFW.swapBuffers win
+    
+drawTileArray :: GLpoint2D -> (Int,Int) -> (Int,Int) -> [[Tile]] -> IO ()
+drawTileArray res mins maxs tiles = unwindWithIndicesM_ tiles (drawTile res mins maxs)
+
+drawTile :: GLpoint2D -> (Int,Int) -> (Int,Int) -> Tile -> Int -> Int -> IO ()
+drawTile (rw,rh) (minX,minY) (maxX, maxY) tile x y =
+    when ((x>=minX)&&(x<=maxX)&&(y>=minY)&&(y<=maxY)) $ do
+        case (tile ^. tileType) of 
+            TileGround -> drawIm "ground"
+            TileWall _ -> drawIm "wall"
+            TileStairs -> drawIm "stairs"
+            TileEmpty -> drawIm "empty"
+            otherwise -> drawIm "empty"
+        when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
+        when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
+        when ((not . IS.null) $ tile ^. tileCreatures) $ do
+            GL.color $ color3 0 1 0
+            drawIm "creature2"
+            GL.color $ color3 1 1 1
+        where drawIm = \im -> drawImage im point1 (rw,rh)
+              point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
+
+------ input handling ------
 handleInput :: GLUI ()
 handleInput = do
     win <- use glWindow
     liftIO $ GLFW.pollEvents
     handleKeys
-    p <- liftIO $ GLFW.getKey win GLFW.Key'Escape
     c <- liftIO $ GLFW.windowShouldClose win
     when c $ glUIState . uiQuit .= True
 
 handleKeys :: GLUI ()
 handleKeys = do
-    -- reading from the channel:
     que <- use glKeyQueue
     emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
     when (not emptyQueue) $ do
         k <- liftIO $ atomically $ readTQueue que
-        handler <- use glKeyHandler
+        handler <- use glBindings
         handler k
         handleKeys
 
-normalKeyHandler ::  Button -> GLUI ()
-normalKeyHandler k = case k of
+defaultBindings ::  Button -> GLUI ()
+defaultBindings k = case k of
             BKey b -> case b of
-                GLFW.Key'Backspace -> execString "pause"
-                GLFW.Key'Escape -> execString "quit" --hits twice/press
+                GLFW.Key'Backspace -> execString "pause" --hits twice/press
+                GLFW.Key'Escape -> execString "quit"
+                GLFW.Key'Tab -> toGameMenu
                 GLFW.Key'Enter -> execString "pause"
                 GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
                 GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
@@ -194,7 +216,53 @@ normalKeyHandler k = case k of
                 '-' -> do men <- use glMenu
                           glMenu .= moveSel men (-1)
                 _ -> return()
-        
+
+gmBindings ::  Button -> GLUI ()
+gmBindings k = case k of
+            BKey b -> case b of
+                GLFW.Key'Enter -> selectMenu
+                GLFW.Key'Escape -> execString "quit"
+                GLFW.Key'Tab -> toDefaultMenu
+                GLFW.Key'Up -> do 
+                    men <- use glMenu
+                    glMenu .= moveSel men 1
+                GLFW.Key'Down -> do
+                    men <- use glMenu
+                    glMenu .= moveSel men (-1)
+                _ -> return()
+            CKey c -> case c of
+                '+' -> do men <- use glMenu
+                          glMenu .= moveSel men 1
+                '-' -> do men <- use glMenu
+                          glMenu .= moveSel men (-1)
+                _ -> return()
+
+------ menus ------
+toGameMenu :: GLUI()
+toGameMenu = do
+    glMenu .= gameMenu
+    glBindings .= gmBindings
+    glMenuActions .= gmActions
+    glDrawMode .= BigMenuMode
+
+gmActions :: [GLUI()]
+gmActions = [toDefaultMenu, execString "quit"]
+
+toDefaultMenu :: GLUI()
+toDefaultMenu = do
+    glMenu .= defaultMenu
+    glBindings .= defaultBindings
+    glMenuActions .= []
+    glDrawMode .= GameMode
+
+selectMenu :: GLUI()
+selectMenu = do
+    act <- use glMenuActions
+    (_,i) <- use glMenu
+    if (length act) <= i
+        then return()
+        else act !! i
+
 
 execString :: String -> GLUI ()
 execString str = do
