@@ -39,29 +39,28 @@ data GLUIState = GLUIState {
     _glLastStep :: Double,
     _glLastRender :: Double,
     _glWindow :: GLFW.Window,
-    _glCharQueue :: TQueue Char,
-    _glKeyQueue :: TQueue GLFW.Key,
+    _glKeyQueue :: TQueue Button,
     _glResolution :: GLpoint2D,
-    _glMenu :: Menu
+    _glMenu :: Menu,
+    _glKeyHandler :: Button -> GLUI()
 }
 
 simpleGLUIState :: IO GLUIState
 simpleGLUIState = do
     window <- liftIO setupUI
-    cQue <- liftIO $ newTQueueIO :: IO (TQueue Char)
-    kQue <- liftIO $ newTQueueIO :: IO (TQueue GLFW.Key)
+    kQue <- liftIO $ newTQueueIO :: IO (TQueue Button)
     return GLUIState {
         _glUIState = simpleUIState,
         _glCommandHandlers = M.empty,
         _glLastStep = -1,
         _glLastRender = -1,
         _glWindow = window,
-        _glCharQueue = cQue,
         _glKeyQueue = kQue,
         _glResolution = (32,32),
-        _glMenu = gameMenu
+        _glMenu = gameMenu,
+        _glKeyHandler = \k -> return()
     }
-
+    
 makeLenses ''GLUIState
 
 newGLUI :: IO ()
@@ -74,14 +73,15 @@ start = do
     until_ (use (glUIState . uiQuit)) loop
     liftIO $ GLFW.destroyWindow win
     liftIO $ GLFW.terminate
- 
+
+-- sets various callbacks and a default key handler    
 setCallbacks :: GLFW.Window -> GLUI ()    
-setCallbacks win = do 
-    cQue <- use glCharQueue
+setCallbacks win = do
     kQue <- use glKeyQueue
     liftIO $ GLFW.setWindowSizeCallback win (Just windowSizeCallback)
-    liftIO $ GLFW.setCharCallback win (Just (charCallback cQue))
+    liftIO $ GLFW.setCharCallback win (Just (charCallback kQue))
     liftIO $ GLFW.setKeyCallback win (Just (keyCallback kQue))
+    glKeyHandler .= normalKeyHandler
     return ()
  
 loop :: GLUI ()
@@ -157,30 +157,10 @@ handleInput :: GLUI ()
 handleInput = do
     win <- use glWindow
     liftIO $ GLFW.pollEvents
-    handleChars
     handleKeys
     p <- liftIO $ GLFW.getKey win GLFW.Key'Escape
     c <- liftIO $ GLFW.windowShouldClose win
     when c $ glUIState . uiQuit .= True
-
-handleChars :: GLUI ()
-handleChars = do
-    -- reading from the channel:
-    que <- use glCharQueue
-    emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
-    when (not emptyQueue) $ do
-        c <- liftIO $ atomically $ readTQueue que
-        men <- use glMenu
-        let m = moveSel men 1
-        case c of
-            '>' -> execString "descendCamera"
-            '<' -> execString "ascendCamera"
-            'g' -> execString "genWorld"
-            'p' -> execString "pause"
-            '+' -> glMenu .= moveSel men 1
-            '-' -> glMenu .= moveSel men (-1)
-            _ -> return()
-        handleChars
 
 handleKeys :: GLUI ()
 handleKeys = do
@@ -189,16 +169,32 @@ handleKeys = do
     emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
     when (not emptyQueue) $ do
         k <- liftIO $ atomically $ readTQueue que
-        case k of
-            GLFW.Key'Backspace -> execString "pause"
-            GLFW.Key'Escape -> execString "quit" --hits twice/press
-            GLFW.Key'Enter -> execString "pause"
-            GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
-            GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
-            GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
-            GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
-            _ -> return()
-        handleChars
+        handler <- use glKeyHandler
+        handler k
+        handleKeys
+
+normalKeyHandler ::  Button -> GLUI ()
+normalKeyHandler k = case k of
+            BKey b -> case b of
+                GLFW.Key'Backspace -> execString "pause"
+                GLFW.Key'Escape -> execString "quit" --hits twice/press
+                GLFW.Key'Enter -> execString "pause"
+                GLFW.Key'Up -> (glUIState . uiCamera . _2) -= 1 
+                GLFW.Key'Down -> (glUIState . uiCamera . _2) += 1
+                GLFW.Key'Right -> (glUIState . uiCamera . _1) += 1 
+                GLFW.Key'Left -> (glUIState . uiCamera . _1) -= 1
+                _ -> return()
+            CKey c -> case c of
+                '>' -> execString "descendCamera"
+                '<' -> execString "ascendCamera"
+                'g' -> execString "genWorld"
+                'p' -> execString "pause"
+                '+' -> do men <- use glMenu
+                          glMenu .= moveSel men 1
+                '-' -> do men <- use glMenu
+                          glMenu .= moveSel men (-1)
+                _ -> return()
+        
 
 execString :: String -> GLUI ()
 execString str = do

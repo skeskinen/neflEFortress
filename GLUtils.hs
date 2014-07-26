@@ -24,6 +24,7 @@ texCoord2 = GL.TexCoord2
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
+data Button = BKey GLFW.Key | CKey Char
 -- Menu
 type Menu = ([String],Int)
 
@@ -44,13 +45,13 @@ moveSel (m,s) x = (m,(s+x)`mod`(length m))
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
 
-charCallback :: TQueue Char -> GLFW.Window -> Char -> IO () 
-charCallback que win char = atomically $ writeTQueue que char
+charCallback :: TQueue Button -> GLFW.Window -> Char -> IO () 
+charCallback que win char = atomically $ writeTQueue que (CKey char)
 
-keyCallback :: TQueue GLFW.Key -> GLFW.Window -> GLFW.Key -> Int 
+keyCallback :: TQueue Button -> GLFW.Window -> GLFW.Key -> Int 
                -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallback que win key i s mod = if (s /= GLFW.KeyState'Released)
-    then do atomically $ writeTQueue que key
+    then do atomically $ writeTQueue que (BKey key)
     else return()
 
 windowSizeCallback :: Window -> Int -> Int -> IO ()
@@ -104,18 +105,18 @@ loadTexture imagePath = do
 tileAtlas :: String -> Maybe (GLpoint2D, GLpoint2D)
 tileAtlas tileName =
     case tileName of
-        "white" -> Just ((1,1),wh)
-        "stairs" -> Just ((2,1),wh)
-        "ground" -> Just ((3,1),wh)
-        "wall" -> Just ((4,1),wh)
-        "empty" -> Just((5,1),wh)
-        "item" -> Just((6,1),wh)
-        "building" -> Just((7,1),wh)
-        "?" -> Just((8,1),wh)
-        "black" -> Just((9,1),wh)
-        "focus"-> Just((10,1),wh)
-        "creature1" -> Just ((1,2),wh)
-        "creature2" -> Just ((2,2),wh)
+        "white" ->      Just((1,1),wh)
+        "stairs" ->     Just((2,1),wh)
+        "ground" ->     Just((3,1),wh)
+        "wall" ->       Just((4,1),wh)
+        "empty" ->      Just((5,1),wh)
+        "item" ->       Just((6,1),wh)
+        "building" ->   Just((7,1),wh)
+        "?" ->          Just((8,1),wh)
+        "black" ->      Just((9,1),wh)
+        "focus"->       Just((10,1),wh)
+        "creature1" ->  Just((1,2),wh)
+        "creature2" ->  Just((2,2),wh)
         _ -> Nothing
     where wh = (32,32)
 
