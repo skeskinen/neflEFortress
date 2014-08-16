@@ -13,12 +13,10 @@ import Data.List.Split (chunksOf)
 import Data.Vector.Lens
 import qualified Data.Map as M
 import qualified Data.IntSet as IS
-import Text.ParserCombinators.Parsec
 
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
-import Data.IORef
 import System.Exit
 import Control.Concurrent
 import Control.Concurrent.STM
@@ -61,7 +59,7 @@ simpleGLUIState = do
         _glResolution = (32,32),
         _glMenu = defaultMenu,
         _glMenuActions = [],
-        _glBindings = \k -> return(),
+        _glBindings = \_ -> return(),
         _glDrawMode = GameMode,
         _glWriteInput = (False,"")
     }
@@ -137,7 +135,7 @@ gameRender = do
         -- focus
         drawImage "focus" focusPoint (rw,rh)
         -- bottom
-        let drawBot = \string xPos -> drawString string  (rw*xPos, rh*(fromIntegral (min h by)))   (rw/2,rh)
+        let drawBot string xPos = drawString string  (rw*xPos, rh*(fromIntegral (min h by)))   (rw/2,rh)
         if writing 
             then drawBot ("command: " ++ text) 1 
             else do
@@ -175,10 +173,9 @@ drawTile (rw,rh) (minX,minY) (maxX, maxY) tile x y =
                 drawCol "stairs" brown
             TileEmpty -> drawIm "empty"
             otherwise -> drawIm "empty"
-        when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
-        when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
-        when ((not . IS.null) $ tile ^. tileCreatures) $ do
-            drawCol "creature3" yellow
+        unless (IS.null (tile ^. tileBuildings)) $ drawIm "building"
+        unless (IS.null (tile ^. tileItems)) $ drawIm "item"
+        unless (IS.null (tile ^. tileCreatures)) $ drawCol "creature3" yellow
         where drawIm = \im -> drawImage im point1 (rw,rh)
               drawCol = \im col -> drawColored im point1 (rw,rh) col
               point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
@@ -195,9 +192,9 @@ handleInput = do
 handleKeys :: GLUI ()
 handleKeys = do
     que <- use glKeyQueue
-    emptyQueue <- liftIO $ atomically $ isEmptyTQueue que
+    emptyQueue <- liftIO $ atomically (isEmptyTQueue que)
     when (not emptyQueue) $ do
-        k <- liftIO $ atomically $ readTQueue que
+        k <- liftIO $ atomically (readTQueue que)
         handler <- use glBindings
         handler k
         handleKeys
@@ -269,7 +266,7 @@ writeChar c = do
 removeChar :: GLUI()
 removeChar = do
     (b, s) <- use glWriteInput
-    when (not (null s)) $ glWriteInput .= (b,init s)
+    unless (null s) $ glWriteInput .= (b,init s)
     
 endWriting :: GLUI()
 endWriting = glWriteInput .= (False,"")
@@ -299,9 +296,7 @@ selectMenu :: GLUI()
 selectMenu = do
     act <- use glMenuActions
     (_,i) <- use glMenu
-    if (length act) <= i
-        then return()
-        else act !! i
+    unless ((length act) <= i) (act !! i)
 
 ------ stuff ------
 moveFocus :: Int -> Int -> Int -> GLUI()
@@ -316,11 +311,10 @@ moveFocus dx dy dz = do
 
 execString :: String -> GLUI ()
 execString str = do
-    r <- return(parseCommand str)
+    let r = parseCommand str
     case r of
             Left _ -> return ()
-            Right (cmd, arg) -> do
-                zoomUI $ execCommand cmd arg
+            Right (cmd, arg) -> zoomUI $ execCommand cmd arg
 
 zoomUI :: UI a -> GLUI a
 zoomUI = zoom glUIState

@@ -1,29 +1,28 @@
 module GLUtils where 
 
-import Data.IORef
-import Control.Monad
+import Prelude hiding (init)
 import System.IO
-import System.Exit 
+import Control.Monad
 import Data.Vector.Storable (unsafeWith)
 import Control.Concurrent.STM
-import Graphics.Rendering.OpenGL as GL
-import Graphics.Rendering.OpenGL (($=))
-import Graphics.UI.GLFW as GLFW
+import Graphics.Rendering.OpenGL 
+import Graphics.UI.GLFW
 import Data.Char
 import qualified Codec.Picture as JP
 
 ------ datatypes ------
 type GLpoint2D = (GLfloat, GLfloat)
 
-vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
-vertex3 = GL.Vertex3
+vertex3 :: GLfloat -> GLfloat -> GLfloat -> Vertex3 GLfloat
+vertex3 = Vertex3
 
-texCoord2 :: GLfloat -> GLfloat -> GL.TexCoord2 GLfloat
-texCoord2 = GL.TexCoord2
+texCoord2 :: GLfloat -> GLfloat -> TexCoord2 GLfloat
+texCoord2 = TexCoord2
  
-color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
-color3 = GL.Color3
+color3 :: GLfloat -> GLfloat -> GLfloat -> Color3 GLfloat
+color3 = Color3
 
+white, brown, green, red, blue, gray, yellow :: Color3 GLfloat
 white = color3 1 1 1
 brown = color3 0.4 0.2 0.1
 green = color3 0 0.5 0
@@ -32,8 +31,7 @@ blue = color3 0 0 0.5
 gray = color3 0.5 0.5 0.5
 yellow = color3 1 1 0
 
-
-data Button = BKey GLFW.Key | CKey Char
+data Button = BKey Key | CKey Char
 data DrawMode = BigMenuMode | GameMode
 
 type Menu = ([String],Int)
@@ -57,37 +55,35 @@ gameMenu =  ([
     
 moveSel :: Menu -> Int -> Menu
 moveSel (m,-1) _ = (m,-1)
-moveSel (m,s) x = (m,(s+x)`mod`(length m))
+moveSel (m,s) x = (m, s+x`mod` length m)
     
 ------ callbacks --------
-errorCallback :: GLFW.ErrorCallback
-errorCallback err description = hPutStrLn stderr description
+errorCallback :: ErrorCallback
+errorCallback _ = hPutStrLn stderr 
 
-charCallback :: TQueue Button -> GLFW.Window -> Char -> IO () 
-charCallback que win char = atomically $ writeTQueue que (CKey char)
+charCallback :: TQueue Button -> Window -> Char -> IO () 
+charCallback que _ char = atomically $ writeTQueue que (CKey char)
 
-keyCallback :: TQueue Button -> GLFW.Window -> GLFW.Key -> Int 
-               -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback que win key i s mod = if (s /= GLFW.KeyState'Released)
-    then do atomically $ writeTQueue que (BKey key)
-    else return()
+keyCallback :: TQueue Button -> Window -> Key -> Int 
+               -> KeyState -> ModifierKeys -> IO ()
+keyCallback que _ key _ s _ = when (s /= KeyState'Released) (atomically $ writeTQueue que (BKey key))
 
 windowSizeCallback :: Window -> Int -> Int -> IO ()
-windowSizeCallback win w h = prepareViewport w h
+windowSizeCallback _ = prepareViewport
 
 ------ UI and Window preparation ------
-setupUI :: IO GLFW.Window
+setupUI :: IO Window
 setupUI = do
-    GLFW.setErrorCallback (Just errorCallback)
-    GLFW.init
+    setErrorCallback (Just errorCallback)
+    _ <- init
     -- open window
-    Just win <- GLFW.createWindow 800 800 "neflEFortress" Nothing Nothing    -- [GLFW.DisplayAlphaBits 8] GLFW.Window
-    GLFW.makeContextCurrent (Just win)
+    Just win <- createWindow 800 800 "neflEFortress" Nothing Nothing    -- [DisplayAlphaBits 8] Window
+    makeContextCurrent (Just win)
     -- set the color to clear background
-    GL.clearColor $= Color4 0 0 0 0
+    clearColor $= Color4 0 0 0 0
     -- load texture
     loadTexture "tileset.png"
-    GL.texture GL.Texture2D $= Enabled
+    texture Texture2D $= Enabled
     prepareViewport 800 800
     
     -- enable transparency
@@ -97,28 +93,27 @@ setupUI = do
 
 prepareViewport:: Int -> Int -> IO ()
 prepareViewport w h = do
-    GL.viewport   $= (GL.Position 0 0, Size (fromIntegral w) (fromIntegral h))
-    GL.matrixMode $= GL.Projection
-    GL.loadIdentity
-    GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
+    viewport   $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
+    matrixMode $= Projection
+    loadIdentity
+    ortho2D 0 (realToFrac w) (realToFrac h) 0
 
 ------ textures ------
 loadTexture :: String -> IO ()
 loadTexture imagePath = do
-    [textureName] <- GL.genObjectNames 1
-    GL.textureBinding GL.Texture2D $= Just textureName
-    GL.textureFilter  GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
+    [textureName] <- genObjectNames 1
+    textureBinding Texture2D $= Just textureName
+    textureFilter  Texture2D $= ((Nearest, Nothing), Nearest)
     image <- JP.readImage imagePath
     case image of 
-        (Left s) -> do print s
-        (Right (JP.ImageRGBA8 (JP.Image width height dat))) -> do
+        (Left s) -> print s
+        (Right (JP.ImageRGBA8 (JP.Image width height dat))) -> 
             -- Access the data vector pointer
             unsafeWith dat $ \ptr ->
-                GL.texImage2D GL.Texture2D NoProxy 0 GL.RGBA8 
-                    (GL.TextureSize2D (toEnum width) (toEnum height))
-                    0 (PixelData GL.RGBA UnsignedByte ptr)
-        (Right _) -> do
-            print "image not found"
+                texImage2D Texture2D NoProxy 0 RGBA8 
+                    (TextureSize2D (toEnum width) (toEnum height))
+                    0 (PixelData RGBA UnsignedByte ptr)
+        (Right _) -> print "image not found"
             
 tileAtlas :: String -> Maybe (GLpoint2D, GLpoint2D)
 tileAtlas tileName =
@@ -143,52 +138,52 @@ tileAtlas tileName =
 
 charAtlas :: Char -> Maybe (GLpoint2D, GLpoint2D)
 charAtlas c
-    | c `elem` ['0'..'9'] = Just (((fromIntegral $ digitToInt c)+1, 32),(64,32))
-    | c `elem` ['a'..'z'] = Just (((fromIntegral $ ord c)-86, 32),(64,32))
-    | c `elem` ['A'..'Z'] = Just (((fromIntegral $ ord c)-28, 32),(64,32))
-    | c `elem` "!#$%&'()*+,-./" = Just (((fromIntegral $ ord c)-32, 31),(64,32))
-    | c `elem` ":;<=>?@" = Just (((fromIntegral $ ord c)-42, 31),(64,32))
+    | c `elem` ['0'..'9'] = Just ((fromIntegral (digitToInt c)+1, 32),(64,32))
+    | c `elem` ['a'..'z'] = Just ((fromIntegral (ord c)-86, 32),(64,32))
+    | c `elem` ['A'..'Z'] = Just ((fromIntegral (ord c)-28, 32),(64,32))
+    | c `elem` "!#$%&'()*+,-./" = Just ((fromIntegral (ord c)-32, 31),(64,32))
+    | c `elem` ":;<=>?@" = Just ((fromIntegral (ord c)-42, 31),(64,32))
     | otherwise = Nothing
 
 ------ drawing ------
 drawMenu :: Menu -> GLpoint2D -> GLpoint2D -> IO()
 drawMenu ([],_) _ _ = return()
-drawMenu ((x:xs),i) (destX, destY) (w, h) = do
+drawMenu (x : xs, i) (destX, destY) (w, h) = do
     if i == 0
         then do 
-            GL.color $ color3 0.5 1 0.5
+            color $ color3 0.5 1 0.5
             drawString ('@':x) (destX, destY) (w,h)
-            GL.color $ color3 1 1 1
+            color $ color3 1 1 1
         else drawString (' ':x) (destX, destY) (w,h)
     drawMenu (xs,i-1) (destX, destY+h) (w,h)
 
 drawImage :: String -> GLpoint2D -> GLpoint2D -> IO()
 drawImage tileName = drawGeneric (tileAtlas tileName)
 
-drawColored :: String -> GLpoint2D -> GLpoint2D -> GL.Color3 GLfloat -> IO()
+drawColored :: String -> GLpoint2D -> GLpoint2D -> Color3 GLfloat -> IO()
 drawColored tileName p r col = do
-    GL.color col
+    color col
     drawImage tileName p r
-    GL.color white 
+    color white 
 
 drawString :: String -> GLpoint2D -> GLpoint2D  -> IO()
 drawString [] _ _ = return()
 drawString (c:cs) (destX, destY) (w, h) = do
     drawGeneric (charAtlas c) (destX, destY) (w, h)
-    drawString cs ((destX + w),destY) (w,h)
+    drawString cs (destX + w, destY) (w, h)
     
 drawGeneric :: Maybe (GLpoint2D, GLpoint2D) 
     -> GLpoint2D -> GLpoint2D -> IO()
 drawGeneric imagePos (destX, destY) (w, h) =
     case imagePos of 
         Just ((imageX, imageY),(atlasW, atlasH)) -> do
-            GL.texCoord $ texCoord2 ((imageX-1)/atlasW)  (imageY/atlasH)
-            GL.vertex   $ vertex3 destX         (destY + h) 0
-            GL.texCoord $ texCoord2 ((imageX-1)/atlasW)  ((imageY-1)/atlasH)
-            GL.vertex   $ vertex3 destX         destY       0
-            GL.texCoord $ texCoord2 (imageX/atlasW)      ((imageY-1)/atlasH)
-            GL.vertex   $ vertex3 (destX + w)   destY       0
-            GL.texCoord $ texCoord2 (imageX/atlasW)      (imageY/atlasH)
-            GL.vertex   $ vertex3 (destX + w)   (destY + h) 0
+            texCoord $ texCoord2 ((imageX-1)/atlasW)  (imageY/atlasH)
+            vertex   $ vertex3 destX         (destY + h) 0
+            texCoord $ texCoord2 ((imageX-1)/atlasW)  ((imageY-1)/atlasH)
+            vertex   $ vertex3 destX         destY       0
+            texCoord $ texCoord2 (imageX/atlasW)      ((imageY-1)/atlasH)
+            vertex   $ vertex3 (destX + w)   destY       0
+            texCoord $ texCoord2 (imageX/atlasW)      (imageY/atlasH)
+            vertex   $ vertex3 (destX + w)   (destY + h) 0
         Nothing -> return () 
 
