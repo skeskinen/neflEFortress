@@ -170,16 +170,17 @@ drawTile (rw,rh) (minX,minY) (maxX, maxY) tile x y =
         case (tile ^. tileType) of 
             TileGround -> drawIm "ground"
             TileWall _ -> drawIm "wall"
-            TileStairs -> drawIm "stairs"
+            TileStairs -> do 
+                drawIm "ground"
+                drawCol "stairs" brown
             TileEmpty -> drawIm "empty"
             otherwise -> drawIm "empty"
         when ((not . IS.null) $ tile ^. tileBuildings) $ drawIm "building"
         when ((not . IS.null) $ tile ^. tileItems) $ drawIm "item"
         when ((not . IS.null) $ tile ^. tileCreatures) $ do
-            GL.color $ color3 0 1 0
-            drawIm "creature2"
-            GL.color $ color3 1 1 1
+            drawCol "creature3" yellow
         where drawIm = \im -> drawImage im point1 (rw,rh)
+              drawCol = \im col -> drawColored im point1 (rw,rh) col
               point1 = (rw*(fromIntegral x), rh*(fromIntegral y))
 
 ------ input handling ------
@@ -305,15 +306,13 @@ selectMenu = do
 ------ stuff ------
 moveFocus :: Int -> Int -> Int -> GLUI()
 moveFocus dx dy dz = do
-    mx <- use $ glUIState . uiWorld . worldTerrain . terrainWidth
-    my <- use $ glUIState . uiWorld . worldTerrain . terrainHeight
-    mz <- use $ glUIState . uiWorld . worldTerrain . terrainDepth
-    x <- use $ glUIState . uiCamera . _1
-    y <- use $ glUIState . uiCamera . _2
-    z <- use $ glUIState . uiCamera . _3
-    glUIState . uiCamera . _1 .= (x+dx)`mod`mx
-    glUIState . uiCamera . _2 .= (y+dy)`mod`my
-    glUIState . uiCamera . _3 .= (z+dz)`mod`mz
+    terrain <- use $ glUIState . uiWorld . worldTerrain
+    let mx = terrain ^. terrainWidth
+    let my = terrain ^. terrainHeight
+    let mz = terrain ^. terrainDepth
+    glUIState . uiCamera . _1 %= \ x -> (x+dx)`mod`mx
+    glUIState . uiCamera . _2 %= \ y -> (y+dy)`mod`my
+    glUIState . uiCamera . _3 %= \ z -> (z+dz)`mod`mz
 
 execString :: String -> GLUI ()
 execString str = do

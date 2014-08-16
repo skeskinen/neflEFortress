@@ -24,6 +24,15 @@ texCoord2 = GL.TexCoord2
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
 
+white = color3 1 1 1
+brown = color3 0.4 0.2 0.1
+green = color3 0 0.5 0
+red = color3 0.5 0 0
+blue = color3 0 0 0.5
+gray = color3 0.5 0.5 0.5
+yellow = color3 1 1 0
+
+
 data Button = BKey GLFW.Key | CKey Char
 data DrawMode = BigMenuMode | GameMode
 
@@ -50,7 +59,7 @@ moveSel :: Menu -> Int -> Menu
 moveSel (m,-1) _ = (m,-1)
 moveSel (m,s) x = (m,(s+x)`mod`(length m))
     
------- callbacks ------
+------ callbacks --------
 errorCallback :: GLFW.ErrorCallback
 errorCallback err description = hPutStrLn stderr description
 
@@ -126,6 +135,9 @@ tileAtlas tileName =
         "focus"->       Just((10,1),wh)
         "creature1" ->  Just((1,2),wh)
         "creature2" ->  Just((2,2),wh)
+        "creature3" ->  Just((3,2),wh)
+        "shoe"      ->  Just((1,3),wh)
+        "bag"       ->  Just((2,3),wh)
         _ -> Nothing
     where wh = (32,32)
 
@@ -152,6 +164,12 @@ drawMenu ((x:xs),i) (destX, destY) (w, h) = do
 
 drawImage :: String -> GLpoint2D -> GLpoint2D -> IO()
 drawImage tileName = drawGeneric (tileAtlas tileName)
+
+drawColored :: String -> GLpoint2D -> GLpoint2D -> GL.Color3 GLfloat -> IO()
+drawColored tileName p r col = do
+    GL.color col
+    drawImage tileName p r
+    GL.color white 
 
 drawString :: String -> GLpoint2D -> GLpoint2D  -> IO()
 drawString [] _ _ = return()
