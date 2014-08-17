@@ -16,42 +16,19 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
-Flag buildOpenGL
-    description:        Build executable that uses OpenGL gui
-    default:            False
-
-Flag buildNCurses
-    description:        Build executable that uses ncurses gui
-    default:            False
-
 executable neflEFortress-cli
     main-is:            Main.hs
     default-language:   Haskell2010
-    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP
+    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP, GADTs, Arrows
     build-depends:      base >=4.7 && <4.8, containers, lens, ansi-terminal, 
-        mtl, vector, parsec, pqueue, split
+        mtl, vector, parsec, pqueue, split, netwire >= 5.0
 
 executable neflEFortress-opengl
-    if flag(buildOpenGL)
-        build-depends: 	GLFW-b >=1.4.6, OpenGL >=2.9, JuicyPixels >=3.1.5,
-            stm >= 2.4
-        cpp-options: 	-DOPENGL
-    else
-        buildable: 		False
+    cpp-options: 	-DOPENGL
     main-is:            Main.hs
     default-language:   Haskell2010
-    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP
+    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP, GADTs, Arrows
+    build-depends: 	GLFW-b >=1.4.6, OpenGL >=2.9, JuicyPixels >=3.1.5, stm >= 2.4
     build-depends:      base >=4.7 && <4.8, containers, lens, ansi-terminal, 
-        mtl, vector, parsec, pqueue, split
+        mtl, vector, parsec, pqueue, split, netwire >= 5.0
 
-executable neflEFortress-ncurses
-    if flag(buildNCurses)
-        build-depends: 	ncurses >= 0.2.10 && <0.3
-        cpp-options: 	-DNCURSES
-    else
-        buildable: 		False
-    main-is:            Main.hs
-    default-language:   Haskell2010
-    other-extensions:   TemplateHaskell, Rank2Types, FlexibleContexts, CPP
-    build-depends:      base >=4.7 && <4.8, containers, lens, ansi-terminal, 
-        mtl, vector, parsec, pqueue, split

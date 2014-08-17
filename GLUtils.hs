@@ -71,9 +71,9 @@ keyCallback que _ key _ s _ = when (s /= KeyState'Released) (atomically $ writeT
 windowSizeCallback :: Window -> Int -> Int -> IO ()
 windowSizeCallback _ = prepareViewport
 
------- UI and Window preparation ------
-setupUI :: IO Window
-setupUI = do
+------ Ui and Window preparation ------
+setupUi :: IO Window
+setupUi = do
     setErrorCallback (Just errorCallback)
     _ <- init
     -- open window

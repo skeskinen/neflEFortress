@@ -1,20 +1,19 @@
 {-# LANGUAGE CPP #-}
 module Main where
 
-import UI
-import CliUI
+import Ui
 #ifdef OPENGL
-import GLUI
+import GLUi
 #endif
 #ifdef NCURSES
-import NCursesUI
+import NCursesUi
 #endif
 
 main :: IO ()
 #ifdef OPENGL
-main = newGLUI
+main = newGLUi
 #elif NCURSES
-main = newNCursesUI
+main = newNCursesUi
 #else
-main = newCliUI
+main = newCliUi
 #endif

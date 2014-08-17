@@ -1,4 +1,4 @@
-module UIUtils where
+module UiUtils where
 
 import Text.ParserCombinators.Parsec 
 import Control.Monad
@@ -6,20 +6,16 @@ import Control.Applicative hiding ((<|>), many)
 import Control.Lens
 import Data.List
 
-import UI
+import Ui
 import Utils
 
-unwindWithIndicesM_ :: (Monad m) => [[a]] -> (a -> Int -> Int -> m b) -> m ()
-unwindWithIndicesM_ xs f = go xs 0 0 f
-    where go [[]] x y _ = return ()
-          go ([]:ys) x y f = go ys 0 (y+1) f
-          go ((el:xs):ys) x y f = f el x y >> go (xs:ys) (x+1) y f
+unwindWithIndices :: [[a]] -> (a -> Int -> Int -> b) -> [b]
+unwindWithIndices v = go v 0 0 
+    where go [] _ _ _ = []
+          go ([]:ys) _ y f = go ys 0 (y+1) f
+          go ((el:xs):ys) x y f = f el x y : go (xs:ys) (x+1) y f
 
-until_ :: Monad m => m Bool -> m () -> m ()
-until_ pred action = do
-    action
-    c <- pred
-    unless c $ until_ pred action 
+{-
 
 commandNames :: [Command] -> [String]
 commandNames = sort . map (view commandName)
@@ -111,3 +107,4 @@ parseArea = do
     spaces
     p2 <- parsePoint
     return (p1, p2)
+-}
