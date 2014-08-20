@@ -29,7 +29,11 @@ import Terrain
 import qualified GLConfig as A
 import Debug.Trace
 
-data UiState = UiState { win :: !Window, keysRef :: IORef Keys }
+import qualified Graphics.Rendering.FTGL as Font
+
+--data UiState = UiState { win :: !Window, keysRef :: IORef Keys }
+data UiState = UiState { win :: !Window, keysRef :: IORef Keys 
+                            ,atlas :: GL.TextureObject, font :: Font.Font }
 data Output = Output { rque :: !RenderQueue }
 data Input = Input { keys :: !Keys } deriving Show
 
@@ -83,19 +87,27 @@ newGLUi = runUiImpl impl
 
 uiInit :: IO UiState
 uiInit = do
-    glWin <- setupUi
+    (glWin, glTex) <- setupUi
     setWindowSizeCallback glWin (Just windowSizeCallback)
     keys <- newIORef S.empty
     setInput glWin keys
-    return $ UiState glWin keys
+
+    font' <- Font.createTextureFont "font.ttf"
+    Font.setFontFaceSize font' 100 72
+    return $ UiState glWin keys glTex font'
 
 draw :: IOWire (Output, UiState) UiState
 draw = execOnce (arr snd) go . (mkId &&& periodic 0.02)
   where 
-    go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w}) -> do
+    go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w, atlas = tex, font = f}) -> do
+    --go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w}) -> do
         GL.clear [GL.ColorBuffer]
-        GL.renderPrimitive GL.Quads $ 
+        GL.textureBinding GL.Texture2D GL.$= Just tex
+        GL.renderPrimitive GL.Quads $ do
             foldM execRenderFunc () r
+            GL.rasterPos $ vertex3 0 0 0
+        GL.preservingAttrib [GL.AllServerAttributes] $ do
+            Font.renderFont f "Hello World!" Font.All
         swapBuffers w
         return (Right s)
     execRenderFunc :: () -> RenderFunc -> IO ()

@@ -86,7 +86,7 @@ setInput win keysRef = setKeyCallback win (Just keyCallback)
     keyCallback _ _ _ _ _= return ()
 
 ------ Ui and Window preparation ------
-setupUi :: IO Window
+setupUi :: IO (Window, TextureObject)
 setupUi = do
     setErrorCallback (Just errorCallback)
     _ <- init
@@ -96,26 +96,32 @@ setupUi = do
     -- set the color to clear background
     clearColor $= Color4 0 0 0 0
     -- load texture
-    loadTexture "tileset.png"
+    tex <- loadTexture "tileset.png"
     texture Texture2D $= Enabled
     prepareViewport 800 800
+
+    clearColor $= Color4 0.1 0.6 0.8 0
     
+    frontFace $= CCW
+    cullFace $= Just Back
     -- enable transparency
     blend $= Enabled
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-    return win
+    --alphaFunc $= Just (Greater, 0.1)
+
+    return (win, tex)
 
 prepareViewport:: Int -> Int -> IO ()
 prepareViewport w h = do
     viewport   $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
     matrixMode $= Projection
     loadIdentity
-    ortho2D 0 (realToFrac w) (realToFrac h) 0
+    ortho2D 0 (realToFrac w) 0 (realToFrac h)
 
 ------ textures ------
-loadTexture :: String -> IO ()
+loadTexture :: String -> IO TextureObject
 loadTexture imagePath = do
-    [textureName] <- genObjectNames 1
+    textureName <- genObjectName 
     textureBinding Texture2D $= Just textureName
     textureFilter  Texture2D $= ((Nearest, Nothing), Nearest)
     image <- JP.readImage imagePath
@@ -128,6 +134,7 @@ loadTexture imagePath = do
                     (TextureSize2D (toEnum width) (toEnum height))
                     0 (PixelData RGBA UnsignedByte ptr)
         (Right _) -> print "image not found"
+    return textureName
             
 ------ drawing ------
 {-drawMenu :: Menu -> GLpoint2D -> GLpoint2D -> IO()
