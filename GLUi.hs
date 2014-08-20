@@ -74,6 +74,7 @@ drawTile x y c rque = go (c ^. tileType) ++ creatures ++ rque
   where
     f = drawImage x y
     colored = drawColored x y
+    go :: TileType -> RenderQueue
     go TileGround     = [f A.Ground]
     go (TileWall _)   = [f A.Wall]
     go TileEmpty      = [f A.Empty]

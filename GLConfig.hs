@@ -2,7 +2,7 @@ module GLConfig where
 
 data Atlas = White | Stairs | Ground | Wall | Empty | Item | Building |
                 QuestionMark | Black | Focus | Creature1 | Creature2 |
-                Creature3 | Shoe | Bag
+                Creature3 | Shoe | Bag | Bed | Wheat | Field | Brewery 
 
 atlas :: Atlas -> (Double, Double)
 atlas White         = (1,1)
@@ -20,3 +20,7 @@ atlas Creature2     = (2,2)
 atlas Creature3     = (3,2)
 atlas Shoe          = (1,3)
 atlas Bag           = (2,3)
+atlas Bed           = (3,3)
+atlas Wheat         = (4,3)
+atlas Field         = (1,4)
+atlas Brewery       = (2,4)
