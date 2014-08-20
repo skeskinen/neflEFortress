@@ -15,7 +15,7 @@ data TileType =
       TileInvalid
     | TileEmpty
     | TileGround
-    | TileWall Int
+    | TileWall Int 
     | TileStairs
     deriving Eq
 
@@ -25,6 +25,7 @@ data Tile = Tile {
     , _tileItems     :: IS.IntSet
     , _tileBuildings :: IS.IntSet
     , _tileType      :: TileType
+    , _tileReserved  :: Maybe Int
 } deriving Eq
 
 data Terrain = Terrain { 
@@ -93,6 +94,7 @@ invalidTile = Tile {
     , _tileType = TileInvalid
     , _tileItems = IS.empty
     , _tileBuildings = IS.empty
+    , _tileReserved = Nothing
 }
 
 indexTerrain :: Terrain -> Point -> Int

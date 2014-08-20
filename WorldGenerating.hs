@@ -28,6 +28,7 @@ simpleWorld =  modifyWorld World {
   where
     modifyWorld world = world 
         & addCreature simpleCreature
+        & addCreature simpleCreature
         & addItem (simpleItem (3, 3, 0))
         & addItem (simpleItem (2, 6, 0))
         & addItem (simpleItem (8, 1, 1))
@@ -79,6 +80,7 @@ simpleTerrain = modifyTerrain Terrain {
         , _tileItems = IS.empty
         , _tileType = t
         , _tileBuildings = IS.empty
+        , _tileReserved = Nothing
     }
 
 simpleAI :: AI

@@ -53,9 +53,11 @@ defaultAI = AI {
     , _aiPlanState = PlanFinished
 }
 
-tryDig :: Creature AI -> Terrain -> Point -> Maybe [AIAction]
-tryDig creature terrain point = 
-    case terrain ^. terrainTile point . tileType of
+tryDig :: Creature AI -> Terrain -> Point -> Maybe (Point, [AIAction])
+tryDig creature terrain point
+    | isn't _Nothing (tile ^. tileReserved) = Nothing
+    | otherwise = 
+      case tile ^. tileType of
         TileWall _ -> do
             let tryDigging dir = do
                     let digPos = addDir dir point
@@ -63,8 +65,10 @@ tryDig creature terrain point =
                         then Nothing
                         else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
                                 findPath terrain (creature ^. creaturePos) digPos
-            asum $ map tryDigging [DUp, DDown, DRight, DLeft]
+            (\a -> (point, a)) <$> (asum $ map tryDigging [DUp, DDown, DRight, DLeft])
         _ -> Nothing
+  where
+    tile = terrain ^. terrainTile point
 
 makeActions :: Creature AI -> State (World AI) AI
 makeActions creature = case ai ^. aiPlanState of
@@ -97,9 +101,12 @@ makeActions creature = case ai ^. aiPlanState of
             terrain <- use worldTerrain
             let mactions = tryDig creature terrain point
             case mactions of
-                Just actions -> return $ 
-                    ai  & aiActionList .~ actions
-                        & aiPlanState .~ PlanStarted
+                Just (point, actions) -> do
+                    worldTerrain . terrainTile point
+                        . tileReserved .= (Just $ creature ^. creatureId)
+                    return $ 
+                      ai  & aiActionList .~ actions
+                          & aiPlanState .~ PlanStarted
                 Nothing -> doNothing
         PlanBuild bid -> tryBuild bid >>= doOrDoNothing
         _ -> doNothing
@@ -111,11 +118,14 @@ makeActions creature = case ai ^. aiPlanState of
                         terrain <- use worldTerrain
                         let points = areaPoints area
                         case asum $ map (tryDig creature terrain) points of
-                             Just actions -> return $
-                                                ai & aiActionList .~ actions
-                                                   & aiPlanState .~ PlanStarted 
-                                                   & aiPlan .~ PlanOther
-                             Nothing -> tryJobs moreJobs
+                            Just (point, actions) -> do
+                                worldTerrain . terrainTile point
+                                    . tileReserved .= (Just $ creature ^. creatureId)
+                                return $
+                                    ai & aiActionList .~ actions
+                                       & aiPlanState .~ PlanStarted 
+                                       & aiPlan .~ PlanOther
+                            Nothing -> tryJobs moreJobs
                     JobBuild bid -> do
                         mbuild <- tryBuild bid
                         case mbuild of
@@ -179,10 +189,13 @@ runAI creature = do
                                              then TileWall (i - 1)
                                              else TileGround
                             t -> t
-                    tile <- worldTerrain . terrainTile (addDir dir (creature ^. creaturePos)) . tileType <%= dig
+                    let pos = addDir dir (creature ^. creaturePos)
+                    tile <- worldTerrain . terrainTile pos . tileType <%= dig
                     case tile of 
                          TileWall _ -> return creature
-                         _ -> nextAction
+                         _ -> do
+                            worldTerrain . terrainTile pos . tileReserved .= Nothing
+                            nextAction
                 AIBuild -> do
                     let build tile = case tile of
                             BuildingBuilding i -> 
