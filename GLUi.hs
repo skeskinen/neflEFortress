@@ -1,13 +1,16 @@
-{-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts, GADTs #-}
+{-# LANGUAGE Rank2Types, FlexibleContexts, GADTs, Arrows #-}
 module GLUi (newGLUi) where
 
 import Control.Lens
+import Data.Vector.Lens
 import Control.Monad
-import Data.Monoid
+--import Data.Monoid
 import Control.Monad.Reader
 import Control.Applicative
 import Data.IORef
 import qualified Data.Set as S
+import Control.Monad.State
+import qualified Data.IntSet as IS
 
 import Graphics.UI.GLFW
 import qualified Graphics.Rendering.OpenGL as GL
@@ -21,59 +24,82 @@ import Ui
 import UiUtils
 import GLUtils
 import World
+import WorldGenerating
 import Terrain
+import qualified GLConfig as A
+import Debug.Trace
 
-data RenderMode = NormalRender
-type RenderFunc = RenderMode -> IO ()
-newtype RenderQueue = RenderQueue [RenderFunc]
-
-data UiState = UiState { win :: Window, keysRef :: IORef Keys }
-data Output = Output { rque :: RenderQueue }
-data Input = Input { keys :: Keys }
-type Keys = S.Set Key
+data UiState = UiState { win :: !Window, keysRef :: IORef Keys }
+data Output = Output { rque :: !RenderQueue }
+data Input = Input { keys :: !Keys } deriving Show
 
 type GLWire a b = GameWire Input a b
 
+res :: GL.GLfloat
+res = 64
+res2 :: (GL.GLfloat, GL.GLfloat)
+res2 = (res,res)
 
-impl :: UiHole Input Output UiState a -> a
-impl Init = uiInit 
-impl BeforeFrame = getInput
-impl AfterFrame = draw
-impl MakeOutput = arr (\ _ -> Output $ RenderQueue [])
+impl :: UiImpl Input Output UiState 
+impl Start          = uiInit
+impl BeforeFrame    = getInput
+impl AfterFrame     = draw
+impl GameWire       = glGame
+
+glGame :: GLWire World' (World', Output)
+glGame = proc world' -> do
+    world <- execOnce mkId (arr (execState stepWorld)) . second (periodic 0.1) -< (world', ()) 
+
+    let curFloor = getFloor 1 (world ^. worldTerrain)
+        drawnTiles = foldWithIndices drawTile [] (toList curFloor) 
+        focus = [drawImage 3 0 A.Focus]
+
+    let rque = drawnTiles ++ focus
+        output = Output rque
+    keyUp Key'Q -< (world, output)
+
+drawTile :: Double -> Double -> Tile -> RenderQueue -> RenderQueue
+drawTile x y c rque = go (c ^. tileType) ++ creatures ++ rque
+  where
+    f = drawImage x y
+    colored = drawColored x y
+    go TileGround     = [f A.Ground]
+    go (TileWall _)   = [f A.Wall]
+    go TileEmpty      = [f A.Empty]
+    go TileStairs     = [f A.Ground, colored A.Stairs brown]
+    go _              = [f A.Empty]
+    creatures = if (IS.null (c ^. tileCreatures)) 
+                    then [] else [colored A.Creature2 green]
 
 newGLUi :: IO ()
-newGLUi = runUiImpl $ UiImpl impl
-    
+newGLUi = runUiImpl impl
+
 uiInit :: IO UiState
 uiInit = do
-    win <- setupUi
-    setWindowSizeCallback win (Just windowSizeCallback)
-    keysRef <- newIORef S.empty
-    setInput win keysRef
-    return $ UiState win keysRef
+    glWin <- setupUi
+    setWindowSizeCallback glWin (Just windowSizeCallback)
+    keys <- newIORef S.empty
+    setInput glWin keys
+    return $ UiState glWin keys
 
 draw :: IOWire (Output, UiState) UiState
-draw = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w}) -> do
-    return (Right s)
-    {-
-    GL.clear [GL.ColorBuffer]
-    GL.renderPrimitive GL.Quads $ 
-        zipWithM_ (flip ($)) (repeat NormalRender) rque
-    swapBuffers win
-    -}
-
-setInput :: Window -> IORef Keys -> IO ()
-setInput win keysRef = setKeyCallback win (Just keyCallback)
-  where
-    keyCallback _ k _ KeyState'Pressed _ = modifyIORef' keysRef (S.insert k)
-    keyCallback _ k _ KeyState'Released _ = modifyIORef' keysRef (S.delete k)
-    keyCallback _ _ _ _ _= return ()
+draw = execOnce (arr snd) go . (mkId &&& periodic 0.02)
+  where 
+    go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w}) -> do
+        GL.clear [GL.ColorBuffer]
+        GL.renderPrimitive GL.Quads $ 
+            foldM execRenderFunc () r
+        swapBuffers w
+        return (Right s)
+    execRenderFunc :: () -> RenderFunc -> IO ()
+    execRenderFunc _ f = f (Resolution 64 64) (AtlasSize 32 32) NormalRender
 
 getInput :: IOWire UiState (Input, UiState) 
-getInput = mkGen_ $ \ (s@UiState{keysRef = keysRef}) -> do
+getInput = mkGen_ $ \ (s@UiState{win = win', keysRef = keysRef'}) -> do
     pollEvents
-    k <- readIORef keysRef
-    return (Right (Input k, s))
+    k <- readIORef keysRef'
+    c <- windowShouldClose win'
+    return (if c then Left () else Right (Input k, s))
 
 keyDown :: Key -> GLWire a a
 keyDown k = mkGen_ $ \ a -> do
@@ -84,5 +110,4 @@ keyUp :: Key -> GLWire a a
 keyUp k = mkGen_ $ \ a -> do
     pressed <- asks (S.member k . keys)
     return (if pressed then Left mempty else Right a)
-
 

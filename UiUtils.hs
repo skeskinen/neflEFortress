@@ -1,19 +1,28 @@
 module UiUtils where
 
-import Text.ParserCombinators.Parsec 
-import Control.Monad
-import Control.Applicative hiding ((<|>), many)
-import Control.Lens
-import Data.List
+--import Text.ParserCombinators.Parsec 
+--import Control.Monad
+--import Control.Applicative hiding ((<|>), many)
+--import Control.Lens
+--import Data.List
 
-import Ui
-import Utils
+import Prelude hiding ((.), id, until)
+import Control.Wire
 
-unwindWithIndices :: [[a]] -> (a -> Int -> Int -> b) -> [b]
-unwindWithIndices v = go v 0 0 
-    where go [] _ _ _ = []
-          go ([]:ys) _ y f = go ys 0 (y+1) f
-          go ((el:xs):ys) x y f = f el x y : go (xs:ys) (x+1) y f
+--import Ui
+--import Utils
+
+foldWithIndices :: (Double -> Double -> a -> b -> b) -> b -> [[a]] -> b
+foldWithIndices = go 0 0
+    where go _ _ _ acc [] = acc
+          go _ y f acc ([]:ys) = go 0 (y+1) f acc ys
+          go x y f acc ((el:xs):ys) = go (x+1) y f (f x y el acc) (xs:ys)
+
+execOnce :: Monad m => Wire s e m a b -> Wire s e m a b -> Wire s e m (a, Event c) b
+execOnce def oth = rSwitch def . second (accumE const $ WGen (\ ds a -> do
+    (b, _) <- stepWire oth ds a
+    return (b, def)))
+
 
 {-
 
