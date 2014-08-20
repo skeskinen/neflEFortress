@@ -49,14 +49,21 @@ impl GameWire       = glGame
 glGame :: GLWire World' (World', Output)
 glGame = proc world' -> do
     world <- execOnce mkId (arr (execState stepWorld)) . second (periodic 0.1) -< (world', ()) 
+    rec
+        x <- integral 0 -< 1 
+        y <- (deltaT (\ds a -> 2 * ds * a) . dir) + delay 11 -< y
+        let pelle = drawColored x y A.Creature3 yellow
 
     let curFloor = getFloor 1 (world ^. worldTerrain)
         drawnTiles = foldWithIndices drawTile [] (toList curFloor) 
         focus = [drawImage 3 0 A.Focus]
 
-    let rque = drawnTiles ++ focus
+    let rque = drawnTiles ++ focus ++ [pelle]
         output = Output rque
     keyUp Key'Q -< (world, output)
+  where
+    --dir = keyDown Key'Up . (-0.0001) <|> keyDown Key'Down . 0.0001 <|> 0 
+    dir = keyDown Key'Up . (-1) <|> keyDown Key'Down . 1 <|> 0 
 
 drawTile :: Double -> Double -> Tile -> RenderQueue -> RenderQueue
 drawTile x y c rque = go (c ^. tileType) ++ creatures ++ rque
@@ -111,3 +118,5 @@ keyUp k = mkGen_ $ \ a -> do
     pressed <- asks (S.member k . keys)
     return (if pressed then Left mempty else Right a)
 
+deltaT :: Fractional a => (a -> b -> c) -> GLWire b c
+deltaT f = mkSF (\ ds b -> (f (realToFrac (dtime ds)) b, deltaT f))
