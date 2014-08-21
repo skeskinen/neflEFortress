@@ -6,6 +6,7 @@ import Control.Lens
 import Control.Monad.State
 import Data.Foldable (asum)
 import Data.IntSet.Lens
+import Data.Maybe (isJust)
 
 import Building
 import Item
@@ -19,7 +20,7 @@ import AIState
 
 tryDig :: Creature -> Terrain -> Point -> Maybe (Point, [AIAction World Creature])
 tryDig creature terrain point
-    | isn't _Nothing (tile ^. tileReserved) = Nothing
+    | isJust (tile ^. tileReserved) = Nothing
     | otherwise = 
       case tile ^. tileType of
         TileWall _ -> do
@@ -33,6 +34,18 @@ tryDig creature terrain point
         _ -> Nothing
   where
     tile = terrain ^. terrainTile point
+
+isReserved :: Point -> State World Bool
+isReserved point = isJust <$> use (worldTerrain . terrainTile point . tileReserved)
+
+reserveTile :: Creature -> Point -> State World ()
+reserveTile creature point = 
+    worldTerrain . terrainTile point . tileReserved .= 
+        (Just . getObjId $ creature ^. creatureId) 
+
+unreserveTile :: Point -> State World ()
+unreserveTile point = 
+    worldTerrain . terrainTile point . tileReserved .= Nothing
 
 makeActions :: Creature -> State World AI
 makeActions creature = case ai ^. aiPlanState of
@@ -66,8 +79,7 @@ makeActions creature = case ai ^. aiPlanState of
             let mactions = tryDig creature terrain point
             case mactions of
                 Just (point, actions) -> do
-                    worldTerrain . terrainTile point
-                        . tileReserved .= (Just . getObjId $ creature ^. creatureId)
+                    reserveTile creature point
                     return $ 
                       ai  & aiActionList .~ actions
                           & aiPlanState .~ PlanStarted
@@ -83,8 +95,7 @@ makeActions creature = case ai ^. aiPlanState of
                         let points = areaPoints area
                         case asum $ map (tryDig creature terrain) points of
                             Just (point, actions) -> do
-                                worldTerrain . terrainTile point
-                                    . tileReserved .= (Just . getObjId $ creature ^. creatureId)
+                                reserveTile creature point
                                 return $
                                     ai & aiActionList .~ actions
                                        & aiPlanState .~ PlanStarted 
@@ -109,15 +120,26 @@ makeActions creature = case ai ^. aiPlanState of
 
     tryBuild bid = do
         terrain <- use worldTerrain
-        mpath <- use . pre $ objLens bid 
-                                . traverse 
-                                . buildingPos 
-                                . to (findPath terrain (creature ^. creaturePos))
-                                . traverse
-        return $ mpath <&> \path -> 
-                    ai & aiActionList .~ [AIMove path, AIBuild]
-                       & aiPlanState .~ PlanStarted
-                       & aiPlan .~ PlanOther
+        bpos <- preuse $ objLens bid . traverse . buildingPos
+
+        res <- traverse isReserved bpos
+
+        case res of 
+            Just False -> do
+                mpath <- preuse $ objLens bid 
+                                        . traverse 
+                                        . buildingPos 
+                                        . to (findPath terrain (creature ^. creaturePos))
+                                        . traverse
+                case mpath of 
+                    Just path -> do
+                        traverse (reserveTile creature) bpos
+                        return . Just $
+                            ai & aiActionList .~ [AIMove path, AIBuild]
+                               & aiPlanState .~ PlanStarted
+                               & aiPlan .~ PlanOther
+                    Nothing -> return Nothing
+            _ -> return Nothing
 
 runAI :: Creature -> State World Creature
 runAI creature = do
@@ -130,7 +152,7 @@ runAI creature = do
             let nextAction = return $ setActionList as creature
             in case a of 
                 AIMove (dir:dirs) -> do
-                    (newCreature, wasMoved) <- moveCreatureDir creature dir
+                    (newCreature, wasMoved) <- moveObjDir creature dir
                     let newActions = if wasMoved 
                                         then AIMove dirs : as
                                         else []
@@ -172,7 +194,9 @@ runAI creature = do
                             worldBuildings . at bid . traverse . buildingState %= build
                             bState <- use . pre $ worldBuildings . at bid . traverse . buildingState 
                             if isn't (_Just . _BuildingBuilding) bState
-                               then nextAction
+                               then do
+                                   unreserveTile (creature ^. creaturePos)
+                                   nextAction
                                else return creature
                         Nothing -> nextAction
 

@@ -15,9 +15,6 @@ import Utils
 import Creature
 import AIState
 
-nameGenerator :: String
-nameGenerator = "Uther"
-
 type Creature = CreatureP World 
 type Building = BuildingP World
 type Item = ItemP World Creature
@@ -183,15 +180,15 @@ pickUpItemId itemid creature = do
             return $ creature & creatureItems %~ (newItem :)
         Nothing -> return creature
 
-moveCreatureDir :: MonadState World m => Creature -> Dir -> m (Creature, Bool)
-moveCreatureDir creature dir = do
+moveObjDir :: (MonadState World m, WorldObject World obj) => obj -> Dir -> m (obj, Bool)
+moveObjDir obj dir = do
     terrain <- use worldTerrain
-    if canMoveDir terrain (creature ^. creaturePos) dir
-      then do
-        let pos = addDir dir (creature ^. creaturePos)
-        newCreature <- moveObj creature pos
-        return (newCreature, True)
-      else return (creature, False)
+    case (\x -> (canMoveDir terrain x dir, x)) <$> obj ^? objPos of
+      Just (True, oldPos) -> do
+        let pos = addDir dir oldPos
+        newObj <- moveObj obj pos
+        return (newObj, True)
+      _ -> return (obj, False)
 
 moveObj :: (MonadState world m, WorldObject world obj) => obj -> Point -> m obj
 moveObj obj pos = do

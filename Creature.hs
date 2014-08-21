@@ -11,6 +11,9 @@ import AIState
 
 type CreatureIdP world = ObjId (CreatureP world)
 
+nameGenerator :: String
+nameGenerator = "Uther"
+
 data CreatureType = 
     CreatureNefle
   deriving (Enum, Eq)
