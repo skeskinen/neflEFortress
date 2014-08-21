@@ -18,28 +18,28 @@ data ItemType =
     | Drink
     deriving (Enum, Eq)
 
-type ItemId = Int
-
-data ItemState = 
+data ItemState c = 
       ItemPos Point
-    | ItemHeldBy Int
+    | ItemHeldBy (ObjId c)
     deriving (Eq)
 
-instance Show ItemState where
+instance Show (ItemState c) where
     show (ItemPos a) = show a
     show (ItemHeldBy a) = "held by " ++ show a 
 
-data Item = Item {
-      _itemId       :: ItemId
+type ItemIdP world c = ObjId (ItemP world c)
+
+data ItemP world c = Item {
+      _itemId       :: ItemIdP world c
     , _itemType     :: ItemType
     , _itemMaterial :: Material
-    , _itemState    :: ItemState
+    , _itemState    :: ItemState c
 }
 
-makeLenses ''Item
+makeLenses ''ItemP
 makePrisms ''ItemState
 
-instance Show Item where 
+instance Show (ItemP world c) where 
     show item = itemDesc item ++ " " ++ show (item ^. itemState)
 
 materialDesc :: Material -> String
@@ -57,7 +57,7 @@ itemTypeDesc = desc
     desc Wheat = "wheat"
     desc Drink = "drink"
 
-itemDesc :: Item -> String
+itemDesc :: ItemP world c -> String
 itemDesc item = 
        materialDesc (item ^. itemMaterial) ++ " "
     ++ itemTypeDesc (item ^. itemType)

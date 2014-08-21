@@ -13,47 +13,11 @@ import PathFinding
 import Terrain
 import Utils
 import World
+import Creature
 
-data Plan = 
-    PlanPickUpItem ItemId
-  | PlanMoveTo Point
-  | PlanDig Point
-  | PlanBuild BuildingId
-  | PlanIdle
-  | PlanOther
-  deriving Show
+import AIState
 
-data PlanState =
-    PlanStarted
-  | PlanFinished
-  deriving Show
-
-data AIAction = 
-    AIPickUpItem ItemId
-  | AIMove [Dir]
-  | AIDig Dir
-  | AIBuild
-  | AIIdle 
-  deriving Show
-
-data AI = AI {
-      _aiPlan       :: Plan
-    , _aiActionList :: [AIAction]
-    , _aiPlanState  :: PlanState
-} deriving Show
-
-makeLenses ''AI
-makePrisms ''Plan
-makePrisms ''AIAction
-
-defaultAI :: AI
-defaultAI = AI {
-      _aiPlan = PlanIdle
-    , _aiActionList = []
-    , _aiPlanState = PlanFinished
-}
-
-tryDig :: Creature AI -> Terrain -> Point -> Maybe (Point, [AIAction])
+tryDig :: Creature -> Terrain -> Point -> Maybe (Point, [AIAction World Creature])
 tryDig creature terrain point
     | isn't _Nothing (tile ^. tileReserved) = Nothing
     | otherwise = 
@@ -70,7 +34,7 @@ tryDig creature terrain point
   where
     tile = terrain ^. terrainTile point
 
-makeActions :: Creature AI -> State (World AI) AI
+makeActions :: Creature -> State World AI
 makeActions creature = case ai ^. aiPlanState of
     PlanStarted -> case ai ^. aiPlan of
         PlanIdle -> return $ ai
@@ -80,7 +44,7 @@ makeActions creature = case ai ^. aiPlanState of
                                     , AIIdle]
                             & aiPlanState .~ PlanStarted
         PlanPickUpItem iid -> do
-            mitemPos <- getItemPosId iid 
+            mitemPos <- getObjPosId iid 
             case mitemPos of 
                  Just itemPos -> do
                      terrain <- use worldTerrain
@@ -103,7 +67,7 @@ makeActions creature = case ai ^. aiPlanState of
             case mactions of
                 Just (point, actions) -> do
                     worldTerrain . terrainTile point
-                        . tileReserved .= (Just $ creature ^. creatureId)
+                        . tileReserved .= (Just . getObjId $ creature ^. creatureId)
                     return $ 
                       ai  & aiActionList .~ actions
                           & aiPlanState .~ PlanStarted
@@ -120,7 +84,7 @@ makeActions creature = case ai ^. aiPlanState of
                         case asum $ map (tryDig creature terrain) points of
                             Just (point, actions) -> do
                                 worldTerrain . terrainTile point
-                                    . tileReserved .= (Just $ creature ^. creatureId)
+                                    . tileReserved .= (Just . getObjId $ creature ^. creatureId)
                                 return $
                                     ai & aiActionList .~ actions
                                        & aiPlanState .~ PlanStarted 
@@ -145,8 +109,7 @@ makeActions creature = case ai ^. aiPlanState of
 
     tryBuild bid = do
         terrain <- use worldTerrain
-        mpath <- use . pre $ worldBuildings 
-                                . at bid 
+        mpath <- use . pre $ objLens bid 
                                 . traverse 
                                 . buildingPos 
                                 . to (findPath terrain (creature ^. creaturePos))
@@ -156,7 +119,7 @@ makeActions creature = case ai ^. aiPlanState of
                        & aiPlanState .~ PlanStarted
                        & aiPlan .~ PlanOther
 
-runAI :: Creature AI -> State (World AI) (Creature AI)
+runAI :: Creature -> State World Creature
 runAI creature = do
     let setActionList as = creatureState . aiActionList .~ as
     case creature ^. creatureState . aiActionList of 
@@ -173,7 +136,7 @@ runAI creature = do
                                         else []
                     return $ setActionList newActions newCreature
                 AIPickUpItem iid -> do
-                    mitemPos <- getItemPosId iid 
+                    mitemPos <- getObjPosId iid 
                     case mitemPos of 
                         Just pos -> 
                             if pos == creature ^. creaturePos

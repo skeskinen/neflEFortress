@@ -50,7 +50,7 @@ impl BeforeFrame    = getInput
 impl AfterFrame     = draw
 impl GameWire       = glGame
 
-glGame :: GLWire World' (World', Output)
+glGame :: GLWire World (World, Output)
 glGame = proc world' -> do
     world <- execOnce mkId (arr (execState stepWorld)) . second (periodic 0.1) -< (world', ()) 
     rec

@@ -7,16 +7,15 @@ import Control.Lens
 import Control.Monad.State
 
 import AI
+import AIState
 import Building
 import Item
 import Terrain
 import Utils
 import World
+import Creature
 
-type World' = World AI
-type Creature' = Creature AI
-
-simpleWorld :: World'
+simpleWorld :: World
 simpleWorld =  modifyWorld World {
       _worldTerrain = simpleTerrain
     , _worldCreatures = IM.empty
@@ -37,7 +36,7 @@ simpleWorld =  modifyWorld World {
         & startBuilding BuildingBrewery (6, 2, 1)
 
 
-runSimpleWorld :: Int -> World'
+runSimpleWorld :: Int -> World
 runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
 
 simpleTerrain :: Terrain
@@ -85,29 +84,29 @@ simpleTerrain = modifyTerrain Terrain {
 
 simpleAI :: AI
 simpleAI = defaultAI 
-            & aiPlan .~ PlanPickUpItem 4
+            & aiPlan .~ PlanPickUpItem (ObjId 4)
 --            & aiPlan .~ PlanDig (7, 3, 1)
             & aiPlanState .~ PlanStarted
 
-simpleAct :: Creature' -> State World' ()
+simpleAct :: Creature -> State World ()
 simpleAct creature = do 
     newCreature <- runAI creature
-    worldCreatures . at (creature ^. creatureId) . traverse .= newCreature 
+    objLens (creature ^. creatureId) ?= newCreature 
 
-simpleCreature :: Creature' 
+simpleCreature :: Creature 
 simpleCreature = Creature {
       _creatureName = nameGenerator
     , _creatureType = CreatureNefle
-    , _creatureId = 1
+    , _creatureId = ObjId 1
     , _creaturePos = (5, 3, 0)
     , _creatureAct = simpleAct
     , _creatureState = simpleAI
     , _creatureItems = []
 }
 
-simpleItem :: Point -> Item
+simpleItem :: Point -> Item 
 simpleItem pos = Item {
-      _itemId = 0
+      _itemId = ObjId 0
     , _itemType = Bed
     , _itemMaterial = Iron
     , _itemState = ItemPos pos

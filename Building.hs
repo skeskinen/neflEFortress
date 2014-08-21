@@ -7,7 +7,7 @@ import Control.Monad.State
 
 import Utils
 
-type BuildingId = Int
+type BuildingIdP world = ObjId (BuildingP world)
 
 data BuildingType = 
     BuildingField
@@ -21,27 +21,27 @@ data BuildingState =
   | BuildingReady
   deriving Show
 
-data Building world = Building {
+data BuildingP world = Building {
     _buildingType     :: BuildingType
   , _buildingPos      :: Point
-  , _buildingId       :: BuildingId
+  , _buildingId       :: BuildingIdP world
   , _buildingState    :: BuildingState
   , _buildingInternal :: Maybe BuildingInt
-  , _buildingAct      :: Building world -> State world ()
+  , _buildingAct      :: BuildingP world -> State world ()
 } 
 
 makePrisms ''BuildingState
 makePrisms ''BuildingInt
-makeLenses ''Building
+makeLenses ''BuildingP
 
-instance Show (Building w) where
+instance Show (BuildingP w) where
     show b = show (b ^. buildingType) ++ " " ++ show (b ^. buildingState)
 
-defBuilding :: Building w
+defBuilding :: BuildingP w
 defBuilding = Building {
       _buildingType = BuildingBrewery
     , _buildingPos = (0,0,0)
-    , _buildingId = -1
+    , _buildingId = ObjId (-1)
     , _buildingState = BuildingBuilding 5
     , _buildingInternal = Nothing
     , _buildingAct = const (return ())

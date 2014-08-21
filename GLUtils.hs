@@ -91,14 +91,14 @@ setupUi = do
     setErrorCallback (Just errorCallback)
     _ <- init
     -- open window
-    Just win <- createWindow 800 800 "neflEFortress" Nothing Nothing    -- [DisplayAlphaBits 8] Window
+    Just win <- createWindow 800 600 "neflEFortress" Nothing Nothing    -- [DisplayAlphaBits 8] Window
     makeContextCurrent (Just win)
     -- set the color to clear background
     clearColor $= Color4 0 0 0 0
     -- load texture
     tex <- loadTexture "tileset.png"
     texture Texture2D $= Enabled
-    prepareViewport 800 800
+    prepareViewport 800 600
 
     clearColor $= Color4 0.1 0.6 0.8 0
     
@@ -155,13 +155,13 @@ drawImage x y a (Resolution resX resY) (AtlasSize aW aH) mode = do
         (aSY, aEY) = ((aY - 1) / aH, aY / aH)
         (sX, eX) = (x * resX, (x + 1) * resX)
         (sY, eY) = (y * resY, (y + 1) * resY)
-    texCoord $ texCoord2  aSX aEY 
-    vertex   $ vertex3     sX  eY 0
     texCoord $ texCoord2  aSX aSY 
+    vertex   $ vertex3     sX  eY 0
+    texCoord $ texCoord2  aSX aEY 
     vertex   $ vertex3     sX  sY 0
-    texCoord $ texCoord2  aEX aSY 
-    vertex   $ vertex3     eX  sY 0
     texCoord $ texCoord2  aEX aEY 
+    vertex   $ vertex3     eX  sY 0
+    texCoord $ texCoord2  aEX aSY 
     vertex   $ vertex3     eX  eY 0
 
 drawColored :: Double -> Double -> A.Atlas -> Color3 GLfloat-> RenderFunc

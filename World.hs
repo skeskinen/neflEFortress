@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances, FunctionalDependencies #-}
 module World where
 
 import qualified Data.IntMap as IM
@@ -11,33 +12,29 @@ import Building
 import Item
 import Terrain
 import Utils
-
-type CreatureId = Int
-
-data CreatureType = 
-    CreatureNefle
-  deriving (Enum, Eq)
-
-data Creature s = Creature {
-      _creatureName  :: String
-    , _creatureType  :: CreatureType
-    , _creatureId    :: CreatureId
-    , _creaturePos   :: (Int, Int, Int)
-    , _creatureAct   :: Creature s -> State (World s) ()
-    , _creatureState :: s
-    , _creatureItems :: [Item]
-}
+import Creature
+import AIState
 
 nameGenerator :: String
 nameGenerator = "Uther"
 
-data World cs = World {
+type Creature = CreatureP World 
+type Building = BuildingP World
+type Item = ItemP World Creature
+
+type ItemId = ItemIdP World Creature
+type BuildingId = BuildingIdP World
+type CreatureId = CreatureIdP World 
+
+type AI = AIState World Creature
+
+data World = World {
       _worldTerrain   :: Terrain
-    , _worldCreatures :: IM.IntMap (Creature cs)
+    , _worldCreatures :: IM.IntMap Creature
     , _worldItems     :: IM.IntMap Item
     , _worldMaxId     :: Int
     , _worldJobs      :: [Job]
-    , _worldBuildings :: IM.IntMap (Building (World cs))
+    , _worldBuildings :: IM.IntMap Building
 }
 
 data Job = 
@@ -46,23 +43,37 @@ data Job =
   | JobBrew
 
 makeLenses ''World
-makeLenses ''Creature
 
-instance Show CreatureType where
-    show CreatureNefle = "Nefle"
+class WorldObject world obj | obj -> world where
+    objLens       :: ObjId obj -> Lens' world (Maybe obj)
+    objId         :: obj -> ObjId obj
+    objPos        :: Traversal' obj Point
+    tileContains  :: Point -> ObjId obj -> Lens' world Bool
 
-instance (Show a) => Show (Creature a) where
-    show c = (c ^. creatureName) ++ "; " ++ show (c ^. creatureType) ++ "; " 
-      ++ show (c ^. creaturePos) 
-      ++ "; Carried items: " ++ show (lengthOf (creatureItems . traverse) c) ++ ", " 
-      ++ show (c ^. creatureItems) ++ "; " ++ show (c ^. creatureState)
+instance WorldObject World (CreatureP World) where
+    objLens i = worldCreatures . at (getObjId i)
+    objId = view creatureId
+    objPos = creaturePos
+    tileContains p oid = worldTerrain . terrainTile p . tileCreatures . contains (getObjId oid)
+
+instance WorldObject World (BuildingP World) where
+    objLens i = worldBuildings . at (getObjId i)
+    objId = view buildingId
+    objPos = buildingPos
+    tileContains p oid = worldTerrain . terrainTile p . tileBuildings . contains (getObjId oid)
+
+instance WorldObject World (ItemP World Creature) where
+    objLens i = worldItems . at (getObjId i)
+    objId = view itemId
+    objPos = itemState . _ItemPos
+    tileContains p oid = worldTerrain . terrainTile p . tileItems . contains (getObjId oid)
 
 instance Show Job where
     show (JobDig area) = "Dig area " ++ show area
     show (JobBuild bid) = "Building " ++ show bid
     show JobBrew = "Brew"
 
-instance (Show cs) => Show (World cs) where
+instance Show World where
     show w = show (w ^. worldTerrain) 
             ++ showObjs (w ^.. worldCreatures.traverse) 
             ++ showObjs (w ^.. worldItems.traverse)
@@ -72,13 +83,10 @@ instance (Show cs) => Show (World cs) where
         showObjs :: Show a => [a] -> String
         showObjs = foldMap ((++"\n").show)
 
-creatureById :: CreatureId -> Lens' (World cs) (Maybe (Creature cs))
-creatureById i = worldCreatures . at i
-
-worldPhysics :: State (World cs) ()
+worldPhysics :: State World ()
 worldPhysics = do
     world <- get
-    let phys objPos moveObj obj = do
+    let phys obj = do
             let mpos = obj ^? objPos
             case mpos of
                 Just pos -> do
@@ -90,28 +98,28 @@ worldPhysics = do
                 Nothing -> 
                     return obj
             
-    newCreatures <- traverse (phys creaturePos moveCreature) (world ^. worldCreatures) 
+    newCreatures <- traverse phys (world ^. worldCreatures) 
     worldCreatures .= newCreatures
 
-    newItems <- traverse (phys (itemState . _ItemPos) moveItem) (world ^. worldItems) 
+    newItems <- traverse phys (world ^. worldItems) 
     worldItems .= newItems
 
-jobFinished :: Job -> State (World cs) Bool
+jobFinished :: Job -> State World Bool
 jobFinished (JobDig area) = do
     terrain <- use worldTerrain
     return . and $ map (\pos -> not . tileIsWall $ terrain ^. terrainTile pos . tileType) (areaPoints area)
 jobFinished (JobBuild bid) = do
-    bState <- use . pre $ worldBuildings . at bid . traverse . buildingState 
+    bState <- use . pre $ objLens bid . traverse . buildingState 
     return $ isn't (_Just . _BuildingBuilding) bState
 jobFinished JobBrew = return False
 
-checkJobs :: State (World cs) ()
+checkJobs :: State World ()
 checkJobs = do
     jobs <- use worldJobs
     newJobs <- filterM (\job -> not <$> jobFinished job) jobs
     worldJobs .= newJobs
 
-stepWorld :: State (World cs) ()
+stepWorld :: State World ()
 stepWorld = do
     creatures <- use worldCreatures
     for_ creatures $ \creature -> 
@@ -124,81 +132,75 @@ stepWorld = do
     checkJobs
     worldPhysics
 
-startBuilding :: BuildingType -> Point -> World cs -> World cs
+startBuilding :: BuildingType -> Point -> World -> World
 startBuilding bt pos world = 
     world & worldMaxId +~ 1
-          & worldBuildings . at newId ?~ b
+          & objLens newId ?~ b
           & worldJobs %~ (JobBuild newId :)
-          & worldTerrain . terrainTile pos . tileBuildings . contains newId .~ True
+          & tileContains pos newId .~ True
   where
-    newId = world ^. worldMaxId + 1 
+    newId :: BuildingId
+    newId = ObjId $ world ^. worldMaxId + 1 
     b = makeBuilding bt
         & buildingPos .~ pos
         & buildingId .~ newId
 
-addCreature :: Creature cs -> World cs -> World cs
+addCreature :: Creature -> World -> World
 addCreature creature world =
     world & worldMaxId +~ 1
-          & worldCreatures . at newId ?~ newCreature
-          & worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains newId .~ True
+          & objLens newId ?~ newCreature
+          & tileContains (creature ^. creaturePos) newId .~ True
   where
-    newId = world ^. worldMaxId + 1 
+    newId :: CreatureId
+    newId = ObjId $ world ^. worldMaxId + 1 
     newCreature = creature & creatureId .~ newId
 
-addItem :: Item -> World cs -> World cs
+addItem :: Item -> World -> World
 addItem item world =
     world & worldMaxId +~ 1
-          & worldItems . at newId ?~ newItem
+          & objLens newId ?~ newItem
           & case item ^. itemState of
-            ItemPos pos  -> worldTerrain . terrainTile pos . tileItems . contains newId .~ True
-            ItemHeldBy cid -> creatureById cid . traverse . creatureItems %~ (newItem :)
+            ItemPos pos  -> tileContains pos newId .~ True
+            ItemHeldBy cid -> objLens cid . traverse . creatureItems %~ (newItem :)
   where
-    newId = world ^. worldMaxId + 1 
+    newId :: ItemId
+    newId = ObjId $ world ^. worldMaxId + 1 
     newItem = item 
             & itemId .~ newId
             
-getItemPosId :: MonadState (World cs) m => ItemId -> m (Maybe Point)
-getItemPosId iid = use . pre $ worldItems . at iid . traverse . itemState . _ItemPos
+getObjPosId :: (MonadState world m, WorldObject world object) => ObjId object -> m (Maybe Point)
+getObjPosId oid = preuse $ objLens oid . traverse . objPos
 
-pickUpItemId :: MonadState (World cs) m => ItemId -> Creature cs -> m (Creature cs)
+pickUpItemId :: MonadState World m => ItemId -> Creature -> m (Creature)
 pickUpItemId itemid creature = do
-    mitem <- use (worldItems . at itemid)
+    mitem <- use (objLens itemid)
     case mitem of 
         Just item -> do
-            forMOf_ (itemState . _ItemPos) item $ \pos -> worldTerrain . terrainTile pos . tileItems . contains itemid .= False
+            forMOf_ objPos item $ \pos -> tileContains pos itemid .= False
             let newItem = item & itemState .~ ItemHeldBy (creature ^. creatureId)
-            worldItems . at itemid ?= newItem
+            objLens itemid ?= newItem
 
             return $ creature & creatureItems %~ (newItem :)
         Nothing -> return creature
 
-moveCreatureDir :: MonadState (World cs) m => Creature cs -> Dir -> m (Creature cs, Bool)
+moveCreatureDir :: MonadState World m => Creature -> Dir -> m (Creature, Bool)
 moveCreatureDir creature dir = do
     terrain <- use worldTerrain
     if canMoveDir terrain (creature ^. creaturePos) dir
       then do
         let pos = addDir dir (creature ^. creaturePos)
-        newCreature <- moveCreature creature pos
+        newCreature <- moveObj creature pos
         return (newCreature, True)
       else return (creature, False)
 
-moveCreature :: MonadState (World cs) m => Creature cs -> Point -> m (Creature cs)
-moveCreature creature pos = do
-    let cid = creature ^. creatureId
-    worldTerrain . terrainTile (creature ^. creaturePos) . tileCreatures . contains cid .= False
-    worldTerrain . terrainTile pos . tileCreatures . contains cid .= True
-    return $ creature & creaturePos .~ pos
+moveObj :: (MonadState world m, WorldObject world obj) => obj -> Point -> m obj
+moveObj obj pos = do
+    let oid = objId obj
+    forMOf_ objPos obj $ \opos -> tileContains opos oid .= False
+    tileContains pos oid .= True
+    return $ obj & objPos .~ pos
 
-moveItem :: MonadState (World cs) m => Item -> Point -> m Item
-moveItem item pos = do
-    let iid = item ^. itemId
-    case item ^? itemState . _ItemPos of 
-        Just oldpos -> worldTerrain . terrainTile oldpos . tileItems . contains iid .= False
-        Nothing -> return ()
-    worldTerrain . terrainTile pos . tileItems . contains iid .= True
-    return $ item & itemState . _ItemPos .~ pos
-
-makeBuilding :: BuildingType -> Building (World cs)
+makeBuilding :: BuildingType -> Building
 makeBuilding BuildingField = 
     defBuilding & buildingType .~ BuildingField
                 & buildingAct .~ fieldAct
@@ -206,16 +208,18 @@ makeBuilding BuildingField =
 makeBuilding BuildingBrewery = 
     defBuilding & buildingType .~ BuildingBrewery
 
-fieldAct :: Building (World cs) -> State (World cs) ()
+fieldAct :: Building -> State World ()
 fieldAct field = 
     when (hasn't (buildingState . _BuildingBuilding) field) $
         if anyOf (buildingInternal . _Just . _FieldTimer) (<= 0) field 
             then do
                 modify $ addItem Item {
-                      _itemId = -1
+                      _itemId = ObjId (-1)
                     , _itemType = Wheat
                     , _itemMaterial = None
                     , _itemState = ItemPos (field ^. buildingPos)
                 }
-                worldBuildings . at (field ^. buildingId) . _Just . buildingInternal . _Just . _FieldTimer .= 10
-           else worldBuildings . at (field ^. buildingId) . _Just . buildingInternal . _Just . _FieldTimer -= 1
+                fieldTimer .= 10
+           else fieldTimer -= 1
+  where
+    fieldTimer = objLens (objId field) . _Just . buildingInternal . _Just . _FieldTimer 

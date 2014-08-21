@@ -4,6 +4,14 @@ import Control.Lens
 type Point = (Int, Int, Int)
 type Area = (Point, Point)
 
+newtype ObjId a = ObjId { getObjId :: Int }
+
+instance Show (ObjId a) where
+    show = show . getObjId
+
+instance Eq (ObjId a) where
+    (ObjId a) == (ObjId b) = a == b
+
 areaPoints :: Area -> [Point]
 areaPoints ((x1, y1, z1), (x2, y2, z2)) = 
     [(x, y, z) | 

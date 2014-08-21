@@ -23,7 +23,7 @@ data UiHole i o s a where
     Start :: UiHole i o s (IO s)
     BeforeFrame :: UiHole i o s (IOWire s (i,s))
     AfterFrame :: UiHole i o s(IOWire (o,s) s)
-    GameWire :: UiHole i o s (GameWire i World' (World', o))
+    GameWire :: UiHole i o s (GameWire i World (World, o))
 
 type UiImpl i o s = forall a. (UiHole i o s a) -> a
 
