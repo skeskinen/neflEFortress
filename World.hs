@@ -11,6 +11,7 @@ import Data.Foldable (foldMap, for_)
 import Building
 import Item
 import Terrain
+import Tile
 import Utils
 import Creature
 import AIState

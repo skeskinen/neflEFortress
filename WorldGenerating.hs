@@ -11,6 +11,7 @@ import AIState
 import Building
 import Item
 import Terrain
+import Tile
 import Utils
 import World
 import Creature

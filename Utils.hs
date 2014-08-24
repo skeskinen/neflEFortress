@@ -2,6 +2,7 @@ module Utils where
 import Control.Lens
 
 type Point = (Int, Int, Int)
+type Point2 = (Int, Int)
 type Area = (Point, Point)
 
 newtype ObjId a = ObjId { getObjId :: Int }

@@ -11,6 +11,7 @@ import Data.Maybe (isJust)
 import Building
 import PathFinding
 import Terrain
+import Tile
 import Utils
 import World
 import Creature

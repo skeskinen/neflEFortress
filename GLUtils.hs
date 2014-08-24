@@ -5,11 +5,16 @@ import Prelude hiding (init)
 import System.IO
 import Data.Vector.Storable (unsafeWith)
 import Graphics.Rendering.OpenGL hiding (RenderMode)
+import qualified Graphics.Rendering.FTGL as Font
 import Graphics.UI.GLFW
 import qualified Codec.Picture as JP
 import Data.IORef
 import qualified Data.Set as S
 import qualified GLConfig as A
+import Control.Lens
+import qualified Data.IntSet as IS
+
+import Tile
 
 ------ datatypes ------
 type GLpoint2D = (GLfloat, GLfloat)
@@ -83,12 +88,14 @@ setInput win keysRef = setKeyCallback win (Just keyCallback)
     keyCallback _ _ _ _ _= return ()
 
 ------ Ui and Window preparation ------
-setupUi :: IO (Window, TextureObject)
-setupUi = do
-    setErrorCallback (Just errorCallback)
+setupUi :: (Window -> IORef Keys -> TextureObject -> Font.Font -> a) -> IO a
+setupUi f = do
     _ <- init
+    setErrorCallback (Just errorCallback)
     -- open window
     Just win <- createWindow 800 600 "neflEFortress" Nothing Nothing    -- [DisplayAlphaBits 8] Window
+
+    setWindowSizeCallback win (Just windowSizeCallback)
     makeContextCurrent (Just win)
     -- set the color to clear background
     clearColor $= Color4 0 0 0 0
@@ -106,7 +113,13 @@ setupUi = do
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
     --alphaFunc $= Just (Greater, 0.1)
 
-    return (win, tex)
+    keysRef <- newIORef S.empty
+    setInput win keysRef
+
+    font <- Font.createTextureFont "font.ttf"
+    _ <- Font.setFontFaceSize font 100 72
+
+    return (f win keysRef tex font)
 
 prepareViewport:: Int -> Int -> IO ()
 prepareViewport w h = do
@@ -166,6 +179,20 @@ drawColored x y a col r aS m = do
     color col
     drawImage x y a r aS m
     color white
+
+drawTile :: Double -> Double -> Tile -> RenderQueue -> RenderQueue
+drawTile x y c rque = go (c ^. tileType) ++ creatures ++ rque
+  where
+    f = drawImage x y
+    colored = drawColored x y
+    go :: TileType -> RenderQueue
+    go TileGround     = [f A.Ground]
+    go (TileWall _)   = [f A.Wall]
+    go TileEmpty      = [f A.Empty]
+    go TileStairs     = [f A.Ground, colored A.Stairs brown]
+    go _              = [f A.Empty]
+    creatures = if IS.null (c ^. tileCreatures) 
+                    then [] else [colored A.Creature2 green]
 
 {-drawString :: String -> GLpoint2D -> GLpoint2D  -> RenderFunc
 drawString [] _ _  mode = return()

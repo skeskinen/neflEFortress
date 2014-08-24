@@ -2,30 +2,13 @@
 module Terrain where
 
 import qualified Data.Vector as V
-import qualified Data.IntSet as IS
 import Data.List.Split (chunksOf)
 import Control.Lens
 import Data.Vector.Lens
 import Data.Maybe (fromMaybe)
+import Tile
 
 import Utils
-
-data TileType = 
-      TileInvalid
-    | TileEmpty
-    | TileGround
-    | TileWall Int 
-    | TileStairs
-    deriving Eq
-
--- TODO: merge the intsets to one set
-data Tile = Tile {
-      _tileCreatures :: IS.IntSet
-    , _tileItems     :: IS.IntSet
-    , _tileBuildings :: IS.IntSet
-    , _tileType      :: TileType
-    , _tileReserved  :: Maybe Int
-} deriving Eq
 
 data Terrain = Terrain { 
       _terrainWidth   :: Int
@@ -34,30 +17,7 @@ data Terrain = Terrain {
     , _terrainTiles   :: V.Vector Tile
 }
 
-makeLenses ''Tile
 makeLenses ''Terrain
-
-instance Show TileType where
-    show TileInvalid  = "%"
-    show TileEmpty    = "+"
-    show TileGround   = "."
-    show (TileWall _) = "#"
-    show TileStairs   = "x"
-
-tileTypeFromChar :: Char -> TileType
-tileTypeFromChar '%' = TileInvalid
-tileTypeFromChar '.' = TileGround
-tileTypeFromChar '#' = TileWall 3
--- tileTypeFromChar '+' = TileEmpty
-tileTypeFromChar 'x' = TileStairs
-tileTypeFromChar _   = TileEmpty
-
-instance Show Tile where
-    show t 
-      | (not . IS.null) $ t ^. tileCreatures = "@"
-      | (not . IS.null) $ t ^. tileItems = "$"
-      | (not . IS.null) $ t ^. tileBuildings = "O"
-      | otherwise = show $ t ^. tileType
 
 instance Show Terrain where
     show t = concatMap ((++"\n").concatMap showPutLn) tileArray 
@@ -66,16 +26,6 @@ instance Show Terrain where
         tileArray = (map (chunksOf w).chunksOf (w*h)) (t ^. terrainTiles.from vector)
         w = t ^. terrainWidth
         h = t ^. terrainHeight
-
-tileIsWall :: TileType -> Bool
-tileIsWall TileInvalid  = True
-tileIsWall (TileWall _) = True
-tileIsWall _            = False
-
-tileCanWalk :: TileType -> Bool
-tileCanWalk TileGround = True
-tileCanWalk TileStairs = True
-tileCanWalk _          = False
 
 canMoveDir :: Terrain -> Point -> Dir -> Bool
 canMoveDir terrain pos dir =
@@ -86,16 +36,6 @@ canMoveDir terrain pos dir =
     tileType1 = terrain ^. terrainTile pos . tileType
     tileType2 = terrain ^. terrainTile newPos . tileType
     newPos = addDir dir pos
-
-invalidTile :: Tile
-invalidTile = Tile {
-      _tileCreatures = IS.empty
-    , _tileType = TileInvalid
-    , _tileItems = IS.empty
-    , _tileBuildings = IS.empty
-    , _tileReserved = Nothing
-}
-
 indexTerrain :: Terrain -> Point -> Int
 indexTerrain terrain (x, y, z) = x + y * w + z * w * h
   where
