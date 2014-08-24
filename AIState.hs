@@ -5,8 +5,6 @@ import Control.Lens
 
 import Building
 import Item
-import PathFinding
-import Terrain
 import Utils
 
 data Plan world c = 

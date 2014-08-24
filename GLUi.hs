@@ -1,8 +1,7 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GADTs, Arrows #-}
+{-# LANGUAGE Arrows, TypeFamilies #-}
 module GLUi (newGLUi) where
 
 import Control.Lens
-import Data.Vector.Lens
 import Control.Monad
 --import Data.Monoid
 import Control.Monad.Reader
@@ -14,7 +13,6 @@ import qualified Data.IntSet as IS
 
 import Graphics.UI.GLFW
 import qualified Graphics.Rendering.OpenGL as GL
-import System.Exit
 
 import Prelude hiding ((.), id, until)
 import Control.Wire
@@ -24,33 +22,26 @@ import Ui
 import UiUtils
 import GLUtils
 import World
-import WorldGenerating
 import Terrain
 import qualified GLConfig as A
-import Debug.Trace
 
 import qualified Graphics.Rendering.FTGL as Font
 
---data UiState = UiState { win :: !Window, keysRef :: IORef Keys }
-data UiState = UiState { win :: !Window, keysRef :: IORef Keys 
-                            ,atlas :: GL.TextureObject, font :: Font.Font }
-data Output = Output { rque :: !RenderQueue }
-data Input = Input { keys :: !Keys } deriving Show
+data GLUi = GLUi { win :: Window, keysRef :: IORef Keys 
+                 , atlas :: GL.TextureObject, font :: Font.Font }
 
-type GLWire a b = GameWire Input a b
+instance UiImpl GLUi where
+    data PureInput GLUi  = GLInput { keys :: !Keys } 
+    data PureOutput GLUi = GLOutput { renderQueue :: !RenderQueue }
+    data GameState GLUi  = GameMode
+    
+    beforeFrame = getInput
+    afterFrame = draw
+    gameWire = glGame
 
-res :: GL.GLfloat
-res = 64
-res2 :: (GL.GLfloat, GL.GLfloat)
-res2 = (res,res)
+type GLWire a b = GameWire GLUi a b
 
-impl :: UiImpl Input Output UiState 
-impl Start          = uiInit
-impl BeforeFrame    = getInput
-impl AfterFrame     = draw
-impl GameWire       = glGame
-
-glGame :: GLWire World (World, Output)
+glGame :: GLWire World (World, PureOutput GLUi)
 glGame = proc world' -> do
     world <- execOnce mkId (arr (execState stepWorld)) . second (periodic 0.1) -< (world', ()) 
     rec
@@ -63,7 +54,7 @@ glGame = proc world' -> do
         focus = [drawImage 3 0 A.Focus]
 
     let rque = drawnTiles ++ focus ++ [pelle]
-        output = Output rque
+        output = GLOutput rque
     keyUp Key'Q -< (world, output)
   where
     --dir = keyDown Key'Up . (-0.0001) <|> keyDown Key'Down . 0.0001 <|> 0 
@@ -80,46 +71,44 @@ drawTile x y c rque = go (c ^. tileType) ++ creatures ++ rque
     go TileEmpty      = [f A.Empty]
     go TileStairs     = [f A.Ground, colored A.Stairs brown]
     go _              = [f A.Empty]
-    creatures = if (IS.null (c ^. tileCreatures)) 
+    creatures = if IS.null (c ^. tileCreatures) 
                     then [] else [colored A.Creature2 green]
 
 newGLUi :: IO ()
-newGLUi = runUiImpl impl
+newGLUi = uiInit >>= runUiImpl
 
-uiInit :: IO UiState
+uiInit :: IO GLUi
 uiInit = do
     (glWin, glTex) <- setupUi
     setWindowSizeCallback glWin (Just windowSizeCallback)
-    keys <- newIORef S.empty
-    setInput glWin keys
+    keysRef' <- newIORef S.empty
+    setInput glWin keysRef'
 
     font' <- Font.createTextureFont "font.ttf"
-    Font.setFontFaceSize font' 100 72
-    return $ UiState glWin keys glTex font'
+    _ <- Font.setFontFaceSize font' 100 72
+    return $ GLUi glWin keysRef' glTex font'
 
-draw :: IOWire (Output, UiState) UiState
+draw :: IOWire (PureOutput GLUi, GLUi) GLUi
 draw = execOnce (arr snd) go . (mkId &&& periodic 0.02)
   where 
-    go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w, atlas = tex, font = f}) -> do
-    --go = mkGen_ $ \ (Output{rque = r}, s@UiState{win = w}) -> do
+    go = mkGen_ $ \ (GLOutput{renderQueue = r}, s@GLUi{win = w, atlas = tex, font = f}) -> do
         GL.clear [GL.ColorBuffer]
         GL.textureBinding GL.Texture2D GL.$= Just tex
-        GL.renderPrimitive GL.Quads $ do
+        GL.renderPrimitive GL.Quads $ 
             foldM execRenderFunc () r
-            GL.rasterPos $ vertex3 0 0 0
-        GL.preservingAttrib [GL.AllServerAttributes] $ do
+        GL.preservingAttrib [GL.AllServerAttributes] $ 
             Font.renderFont f "Hello World!" Font.All
         swapBuffers w
         return (Right s)
     execRenderFunc :: () -> RenderFunc -> IO ()
     execRenderFunc _ f = f (Resolution 64 64) (AtlasSize 32 32) NormalRender
 
-getInput :: IOWire UiState (Input, UiState) 
-getInput = mkGen_ $ \ (s@UiState{win = win', keysRef = keysRef'}) -> do
+getInput :: IOWire GLUi (PureInput GLUi, GLUi) 
+getInput = mkGen_ $ \ (s@GLUi{win = win', keysRef = keysRef'}) -> do
     pollEvents
     k <- readIORef keysRef'
     c <- windowShouldClose win'
-    return (if c then Left () else Right (Input k, s))
+    return (if c then Left () else Right (GLInput k, s))
 
 keyDown :: Key -> GLWire a a
 keyDown k = mkGen_ $ \ a -> do

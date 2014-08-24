@@ -1,9 +1,7 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GADTs, Arrows, 
-        ScopedTypeVariables #-}
+{-# LANGUAGE Arrows, ScopedTypeVariables, TypeFamilies #-}
 module Ui where
 
 import Control.Monad.Reader
-import Control.Monad.State
 --import Control.Monad
 --import Control.Lens
 
@@ -16,23 +14,31 @@ import World
 --import Terrain
 import WorldGenerating
 
-type GameWire r a b = Wire (Timed NominalDiffTime ()) () (Reader r) a b
 type IOWire a b = Wire (Timed NominalDiffTime ()) () IO a b
+type GameWire impl = Wire (Timed NominalDiffTime ()) () (Reader (PureInput impl)) 
 
-data UiHole i o s a where 
-    Start :: UiHole i o s (IO s)
-    BeforeFrame :: UiHole i o s (IOWire s (i,s))
-    AfterFrame :: UiHole i o s(IOWire (o,s) s)
-    GameWire :: UiHole i o s (GameWire i World (World, o))
+class UiImpl impl where 
+    data PureInput  impl :: *
+    data PureOutput impl :: *
+    data GameState  impl :: *
+    --type GameWire impl   :: * -> * -> *
 
-type UiImpl i o s = forall a. (UiHole i o s a) -> a
+    beforeFrame     :: IOWire        impl 
+                                     (PureInput impl, impl)
 
-runUiImpl :: forall i o s. UiImpl i o s -> IO () 
+    afterFrame      :: IOWire        (PureOutput impl, impl) 
+                                     impl
+
+    gameWire        :: GameWire impl World 
+                                     (World, PureOutput impl)
+
+    --coMoveCursorRel :: impl -> 
+
+runUiImpl :: forall impl. (UiImpl impl) => impl -> IO () 
 runUiImpl impl = do
-    s0 <- impl Start
-    let bw = impl BeforeFrame 
-        aw = impl AfterFrame
-    run s0 clockSession_ mainWire bw aw
+    let bw = beforeFrame
+        aw = afterFrame
+    run impl clockSession_ mainWire bw aw
   where
     run s1 session wire beforeWire afterWire = do
         (dt, session') <- stepSession session
@@ -43,12 +49,11 @@ runUiImpl impl = do
                 (s3', aw) <- stepWire afterWire dt (Right (output, s2))
                 whenRight s3' $ \ s3 -> run s3 session' w bw aw
 
-    mainWire :: GameWire i () o
+    mainWire :: GameWire impl () (PureOutput impl)
     mainWire = proc _ -> do
         rec
-            (world, output) <- impl GameWire . force . delay simpleWorld -< world
+            (world, output) <- gameWire . force . delay simpleWorld -< world
         returnA -< output
 
     whenRight :: Either a b -> (b -> IO ()) -> IO ()
     whenRight = flip (either (const (return ())))
-

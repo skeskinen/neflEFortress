@@ -1,18 +1,15 @@
-{-# LANGUAGE Rank2Types, FlexibleContexts, GADTs, Arrows #-}
+{-# LANGUAGE Rank2Types, GADTs #-}
 module GLUtils where 
 
 import Prelude hiding (init)
 import System.IO
-import Control.Monad
 import Data.Vector.Storable (unsafeWith)
 import Graphics.Rendering.OpenGL hiding (RenderMode)
 import Graphics.UI.GLFW
-import Data.Char
 import qualified Codec.Picture as JP
 import Data.IORef
 import qualified Data.Set as S
 import qualified GLConfig as A
-import Control.Lens
 
 ------ datatypes ------
 type GLpoint2D = (GLfloat, GLfloat)
@@ -149,7 +146,7 @@ drawMenu (x : xs, i) (destX, destY) (w, h) = do
     drawMenu (xs,i-1) (destX, destY+h) (w,h)-}
 
 drawImage :: Double -> Double -> A.Atlas -> RenderFunc 
-drawImage x y a (Resolution resX resY) (AtlasSize aW aH) mode = do 
+drawImage x y a (Resolution resX resY) (AtlasSize aW aH) _ = do 
     let (aX, aY) = A.atlas a 
         (aSX, aEX) = ((aX - 1) / aW, aX / aW)
         (aSY, aEY) = ((aY - 1) / aH, aY / aH)

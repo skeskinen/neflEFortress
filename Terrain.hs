@@ -6,7 +6,6 @@ import qualified Data.IntSet as IS
 import Data.List.Split (chunksOf)
 import Control.Lens
 import Data.Vector.Lens
-import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 
 import Utils

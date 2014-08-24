@@ -168,7 +168,7 @@ addItem item world =
 getObjPosId :: (MonadState world m, WorldObject world object) => ObjId object -> m (Maybe Point)
 getObjPosId oid = preuse $ objLens oid . traverse . objPos
 
-pickUpItemId :: MonadState World m => ItemId -> Creature -> m (Creature)
+pickUpItemId :: MonadState World m => ItemId -> Creature -> m Creature
 pickUpItemId itemid creature = do
     mitem <- use (objLens itemid)
     case mitem of 

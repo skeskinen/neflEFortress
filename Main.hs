@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 module Main where
 
-import Ui
 #ifdef OPENGL
 import GLUi
 #endif

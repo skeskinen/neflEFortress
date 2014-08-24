@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, Rank2Types #-}
+{-# LANGUAGE Rank2Types #-}
 module AI where
 
 import Control.Applicative
@@ -9,7 +9,6 @@ import Data.IntSet.Lens
 import Data.Maybe (isJust)
 
 import Building
-import Item
 import PathFinding
 import Terrain
 import Utils
@@ -30,7 +29,7 @@ tryDig creature terrain point
                         then Nothing
                         else (\dirs -> [AIMove dirs, AIDig (reverseDir dir)]) <$> 
                                 findPath terrain (creature ^. creaturePos) digPos
-            (\a -> (point, a)) <$> (asum $ map tryDigging [DUp, DDown, DRight, DLeft])
+            (\a -> (point, a)) <$> asum (map tryDigging [DUp, DDown, DRight, DLeft])
         _ -> Nothing
   where
     tile = terrain ^. terrainTile point
@@ -78,8 +77,8 @@ makeActions creature = case ai ^. aiPlanState of
             terrain <- use worldTerrain
             let mactions = tryDig creature terrain point
             case mactions of
-                Just (point, actions) -> do
-                    reserveTile creature point
+                Just (point', actions) -> do
+                    reserveTile creature point'
                     return $ 
                       ai  & aiActionList .~ actions
                           & aiPlanState .~ PlanStarted
@@ -133,7 +132,7 @@ makeActions creature = case ai ^. aiPlanState of
                                         . traverse
                 case mpath of 
                     Just path -> do
-                        traverse (reserveTile creature) bpos
+                        _ <- traverse (reserveTile creature) bpos
                         return . Just $
                             ai & aiActionList .~ [AIMove path, AIBuild]
                                & aiPlanState .~ PlanStarted
