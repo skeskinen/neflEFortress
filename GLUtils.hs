@@ -199,4 +199,3 @@ drawString [] _ _  mode = return()
 drawString (c:cs) (destX, destY) (w, h) mode = do
     drawGeneric (charAtlas c) (destX, destY) (w, h) mode
     drawString cs (destX + w, destY) (w, h) mode-}
-    

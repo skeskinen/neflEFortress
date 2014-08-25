@@ -8,6 +8,7 @@ module UiUtils where
 
 import Prelude hiding ((.), id, until)
 import Control.Wire
+import Control.Wire.Unsafe.Event as X (Event(..), event)
 
 --import Ui
 --import Utils
@@ -18,11 +19,26 @@ foldWithIndices = go 0 0
           go _ y f acc ([]:ys) = go 0 (y+1) f acc ys
           go x y f acc ((el:xs):ys) = go (x+1) y f (f x y el acc) (xs:ys)
 
-execOnce :: Monad m => Wire s e m a b -> Wire s e m a b -> Wire s e m (a, Event c) b
-execOnce def oth = rSwitch def . second (accumE const $ WGen (\ ds a -> do
-    (b, _) <- stepWire oth ds a
+execOnceSet :: Monad m => Wire s e m a b -> Wire s e m a b -> Wire s e m (a, Event c) b
+execOnceSet other def = rSwitch def . second (setE $ WGen (\ ds a -> do
+    (b, _) <- stepWire other ds a
     return (b, def)))
 
+execOnceMap :: Monad m => (c -> Wire s e m a b) ->
+                          Wire s e m a b -> 
+                          Wire s e m (a, Event c) b
+execOnceMap f def = rSwitch def . second (mapE (\ c -> WGen (\ ds a -> do 
+    (b, _) <- stepWire (f c) ds a
+    return (b, def))))
+
+mapE :: (a -> b) -> Wire s e m (Event a) (Event b)
+mapE f = mkSF_ (event NoEvent (Event . f)) 
+
+setE :: b -> Wire s e m (Event a) (Event b)
+setE = accumE const
+
+whenRight :: Monad m => Either a b -> (b -> m ()) -> m ()
+whenRight = flip (either (const (return ())))
 
 {-
 

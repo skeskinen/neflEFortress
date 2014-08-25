@@ -22,7 +22,7 @@ simpleWorld =  modifyWorld World {
     , _worldCreatures = IM.empty
     , _worldMaxId = 0
     , _worldItems = IM.empty
-    , _worldJobs = [JobDig ((6, 1, 1), (7, 5, 1))]
+    , _worldJobs = [JobDig ((6, 1, 0), (7, 5, 0))]
     , _worldBuildings = IM.empty
 }
   where
@@ -42,14 +42,24 @@ runSimpleWorld n = execState (replicateM_ n stepWorld) simpleWorld
 
 simpleTerrain :: Terrain
 simpleTerrain = modifyTerrain Terrain {
-      _terrainWidth = 10
-    , _terrainHeight = 10
-    , _terrainDepth = 2
+      _terrainSize = (10, 10, 2)
     , _terrainTiles = tiles
 }
   where
     modifyTerrain terrain = terrain
-    tiles = tileFloor1 V.++ tileFloor2 
+    tiles = tileFloor0 V.++ tileFloor1 
+    tileFloor0 = makeLevel [
+          "##########"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "#.....##.#"
+        , "####..##x#"
+        , "#..#####.#"
+        , "#..#...#.#"
+        , "#....#.#.#"
+        , "##########"
+        ]
     tileFloor1 = makeLevel [
           "##########"
         , "#........#"
@@ -62,19 +72,7 @@ simpleTerrain = modifyTerrain Terrain {
         , "#....#...#"
         , "##########"
         ]
-    tileFloor2 = makeLevel [
-          "##########"
-        , "#.....##.#"
-        , "#.....##.#"
-        , "#.....##.#"
-        , "#.....##.#"
-        , "####..##x#"
-        , "#..#####.#"
-        , "#..#...#.#"
-        , "#....#.#.#"
-        , "##########"
-        ]
-    makeLevel = V.fromList . concatMap (map (tile . tileTypeFromChar))
+    makeLevel = V.fromList . concatMap (map (tile . tileTypeFromChar)) . reverse
     tile t = Tile {
           _tileCreatures = IS.empty
         , _tileItems = IS.empty
@@ -99,7 +97,7 @@ simpleCreature = Creature {
       _creatureName = nameGenerator
     , _creatureType = CreatureNefle
     , _creatureId = ObjId 1
-    , _creaturePos = (5, 3, 0)
+    , _creaturePos = (5, 3, 1)
     , _creatureAct = simpleAct
     , _creatureState = simpleAI
     , _creatureItems = []

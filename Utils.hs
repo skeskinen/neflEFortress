@@ -2,7 +2,6 @@ module Utils where
 import Control.Lens
 
 type Point = (Int, Int, Int)
-type Point2 = (Int, Int)
 type Area = (Point, Point)
 
 newtype ObjId a = ObjId { getObjId :: Int }
@@ -31,14 +30,28 @@ reverseDir DRight  = DLeft
 reverseDir DTop    = DBottom
 reverseDir DBottom = DTop
 
+boundPoint :: Point -> ((Point, Point)) -> Point
+boundPoint p (mi, ma) = p & _1 %~ f _1
+                          & _2 %~ f _2
+                          & _3 %~ f _3
+  where
+    f l = (max (mi ^. l)) . (min (ma ^. l - 1))
 
 addDir :: Dir -> Point -> Point
-addDir DUp     = _2 -~ 1
-addDir DDown   = _2 +~ 1
-addDir DLeft   = _1 -~ 1
-addDir DRight  = _1 +~ 1
-addDir DTop    = _3 -~ 1
-addDir DBottom = _3 +~ 1
+addDir DUp     = addDirI DUp     1
+addDir DDown   = addDirI DDown   1
+addDir DLeft   = addDirI DLeft   1
+addDir DRight  = addDirI DRight  1
+addDir DTop    = addDirI DTop    1
+addDir DBottom = addDirI DBottom 1
+
+addDirI :: Dir -> Int -> Point -> Point
+addDirI DUp     i = _2 +~ i
+addDirI DDown   i = _2 -~ i
+addDirI DLeft   i = _1 -~ i
+addDirI DRight  i = _1 +~ i
+addDirI DTop    i = _3 +~ i
+addDirI DBottom i = _3 -~ i
 
 dirsToPoints :: [Dir] -> Point -> [Point]
 dirsToPoints dirs pos = foldl (\list@(prevPos : _) dir -> addDir dir prevPos : list) [pos] dirs

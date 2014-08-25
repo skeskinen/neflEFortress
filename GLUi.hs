@@ -32,27 +32,50 @@ instance UiImpl GLUi where
     outputFreq      = outputFreq'
     worldFreq       = worldFreq'
     processWorld    = processWorld'
-    coMoveCursorRel = undefined
-    coDig           = undefined
+    coQuit          = coQuit'
+    coMoveCursorRel = coMoveCursorRel'
+    coDig           = coDig'
                     
 
 type GLWire a b = GameWire GLUi a b
 
-newGLUi :: IO ()
-newGLUi = setupUi GLUi >>= runUiImpl
+--Drawing, maybe other stuff later
+processWorld' :: GLWire UiWorld GLOutput
+processWorld' = arr (\ UiWorld{tiles = t, creatures = c, buildings = b, items = i, focusPos = f} -> 
+        GLOutput (mkTiles t ++ mkFocus f))
+  where 
+      --draw creatures, buildings, items here
+    mkTiles = foldWithIndices drawTile [] 
+    mkFocus (x,y,_) = [drawImage (fromIntegral x) (fromIntegral y) A.Focus]
 
-outputFreq' :: GLWire a (Event a)
-outputFreq' = periodic 0.02
+--Commands
+coQuit' :: GLWire a (Event a)
+coQuit' = keyDown Key'Q
+
+coMoveCursorRel' :: GLWire a (Event (Dir, Int))
+coMoveCursorRel' = mRight <& mLeft <& mUp <& mDown <& mTop <& mBottom
+  where
+    mkDir k d = keyDown k . mkConst (Right (d, 1))
+    mRight  = mkDir Key'Right  DRight
+    mLeft   = mkDir Key'Left   DLeft
+    mUp     = mkDir Key'Up     DUp
+    mDown   = mkDir Key'Down   DDown
+    mTop    = mkDir Key'Period DTop
+    mBottom = mkDir Key'Comma  DBottom
+
+coDig' :: GLWire a (Event a)
+coDig' = keyDown Key'Space
+
+--fps stuff
+outputFreq' :: GLUi -> MWire IO a (Event a)
+outputFreq' _ = periodic 0.02
 
 worldFreq' :: GLWire a (Event a)
 worldFreq' = periodic 0.06
 
-sleep' :: GLUi -> IO ()
-sleep' _ = threadDelay 10000 
-
-processWorld' :: GLWire UiWorld GLOutput
-processWorld' = arr (\ UiWorld{tiles = t} -> 
-    GLOutput (foldWithIndices drawTile [] t))
+--IO stuff
+newGLUi :: IO ()
+newGLUi = setupUi GLUi >>= runUiImpl
 
 getInput :: GLUi -> IO (Maybe (GLInput, GLUi))
 getInput s@GLUi{win = win', keysRef = keysRef'} = do
@@ -74,6 +97,19 @@ draw (GLOutput{renderQueue = r}, GLUi{win = w, atlas = tex, font = font'}) = do
     execRenderFunc :: () -> RenderFunc -> IO ()
     execRenderFunc _ f = f (Resolution 64 64) (AtlasSize 32 32) NormalRender
 
+sleep' :: GLUi -> IO ()
+sleep' _ = threadDelay 10000 
+
+--Keyboard utils, needs to see GLInput
+keyDown :: Key -> GLWire a (Event a)
+keyDown k = off
+  where 
+    pressed = asks (S.member k . keys)
+    off = mkGenN $ \ a -> pressed >>= (\p -> if p then e a else ne off)
+    on = mkGenN $ \ _ -> pressed >>= (\p -> ne (if p then on else off))
+    e a = return (Right (Event a), on)
+    ne w = return (Right NoEvent, w)
+
 keyPressed :: Key -> GLWire a a
 keyPressed k = mkGen_ $ \ a -> do
     pressed <- asks (S.member k . keys)
@@ -84,5 +120,3 @@ keyNotPressed k = mkGen_ $ \ a -> do
     pressed <- asks (S.member k . keys)
     return (if pressed then Left mempty else Right a)
 
---deltaT :: Fractional a => (a -> b -> c) -> GLWire b c
---deltaT f = mkSF (\ ds b -> (f (realToFrac (dtime ds)) b, deltaT f))
