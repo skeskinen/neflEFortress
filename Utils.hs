@@ -37,6 +37,10 @@ boundPoint p (mi, ma) = p & _1 %~ f _1
   where
     f l = (max (mi ^. l)) . (min (ma ^. l - 1))
 
+boundingBox :: (Point, Point) -> (Point, Point)
+boundingBox ((x1, y1, z1), (x2, y2, z2)) = 
+    ((min x1 x2, min y1 y2, min z1 z2), (max x1 x2, max y1 y2, max z1 z2))
+
 addDir :: Dir -> Point -> Point
 addDir DUp     = addDirI DUp     1
 addDir DDown   = addDirI DDown   1

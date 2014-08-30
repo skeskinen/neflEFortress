@@ -28,7 +28,7 @@ import Item as X
 import Building as X
 import WorldGenerating
 
-import Debug.Trace
+--import Debug.Trace
 
 type GameWire impl = Wire (Timed NominalDiffTime ()) () (Reader (Input impl)) 
 type MWire m = Wire (Timed NominalDiffTime ()) () m 
@@ -49,6 +49,8 @@ class UiImpl impl where
     processWorld    :: GameWire impl    UiWorld     (Output impl) 
     coQuit          :: GameWire impl    a           (Event a)
     coMoveCursorRel :: GameWire impl    a           (Event (Dir, Int)) 
+    coStartSelect   :: GameWire impl    a           (Event a)
+    coCancelSelect  :: GameWire impl    a           (Event a)
     coDig           :: GameWire impl    a           (Event a)
 
 data UiWorld = UiWorld { 
@@ -56,7 +58,8 @@ data UiWorld = UiWorld {
     creatures :: [Creature],
     buildings :: [Building],
     items     :: [Item],
-    focusPos  :: Point 
+    focusPos  :: Point,
+    selectPos :: Maybe Point
     }
 
 runUiImpl :: forall impl. (UiImpl impl, MonadIO (GameIO impl), Applicative (GameIO impl)) => 
@@ -77,57 +80,66 @@ runUiImpl s0 = run s0 clockSession_ mainWire
 
     outputWire :: impl -> MWire (GameIO impl) (Output impl) ()
     outputWire s = proc output -> 
-        execOnceSet (execOutput s) (mkConst (Right ())) . (mkId &&& outputFreq s) -< output
+        execOnceSet (execOutput s) (mkConst (Right ())) . leftId (outputFreq s) -< output
 
     execOutput :: impl -> MWire (GameIO impl) (Output impl) ()
     execOutput s = mkGen_ (\ o -> Right <$> handleOutput (o, s))
 
-    mainWire :: GameWire impl () (Output impl)
-    mainWire = proc _ -> do
-        runWorld  <- worldFreq -< ()
-        rec
-            world  <- execOnceSet step mkId . first (delay simpleWorld) -< (world', runWorld)
-            world' <- modifyWorld -< (world, focus)
-            focus <- moveCursor coMoveCursorRel . first (delay (0,4,0)) -< (focus, world')
-        uiWorld <- generateUiWorld -< (world', focus)
+data UiState = UiState { s_world :: World, s_focus :: Point, s_select :: Maybe Point}
+    
+mainWire :: UiImpl impl => GameWire impl () (Output impl)
+mainWire = proc _ -> do
+    runWorld  <- worldFreq -< ()
+    rec
+        world <- modifyWorld . execOnceSet step mkId -< (s, runWorld)
+        focus <- moveCursor . leftId coMoveCursorRel -< s
+        select <- selectCancelWire . leftId coCancelSelect . selectWire . leftId coStartSelect -< s
+        s <- delay (UiState simpleWorld (2,2,0) Nothing) -< UiState world focus select
+    uiWorld <- generateUiWorld -< s
 
-        quitEvent <- coQuit -< ()
-        until . first processWorld -< (uiWorld, quitEvent)
+    until . leftId coQuit . processWorld -< uiWorld
 
-    step :: GameWire impl World World
-    step = arr (execState stepWorld)
+selectWire :: UiImpl impl => GameWire impl (UiState, Event a) (Maybe Point)
+selectWire = execOnceSet (arr (\s -> Just (s_focus s))) (arr (\s -> s_select s))
 
-    modifyWorld :: GameWire impl (World, Point) World
-    modifyWorld = proc (world0, focus) -> do
-        digEvent <- coDig -< ()
-        world1 <- execOnceSet digWire (arr fst) -< ((world0, focus), digEvent)
-        returnA -< world1
+selectCancelWire :: UiImpl impl => GameWire impl (Maybe Point, Event a) (Maybe Point) 
+selectCancelWire = execOnceSet (mkConst (Right Nothing)) mkId
 
-    digWire :: GameWire impl (World, Point) World
-    digWire = arr (\ (w, f) -> traceShow (w ^. worldJobs) (w & worldJobs %~ (digJob f :)))
+moveCursor :: UiImpl impl => GameWire impl (UiState, Event (Dir, Int)) Point 
+moveCursor = execOnceMap boundsWire (arr s_focus) 
 
-    digJob :: Point -> Job
-    digJob p@(x,y,z) = JobDig (p, (x+1,y+1,z))
+boundsWire :: UiImpl impl => (Dir, Int) -> GameWire impl UiState Point
+boundsWire (dir, dist) = arr (\ (UiState{s_world=w, s_focus=f}) -> bounds (addDirI dir dist f) w)
+  where
+    bounds :: Point -> World -> Point
+    bounds p w = boundPoint p ((0,0,0), w ^. worldTerrain . terrainSize)
 
-    generateUiWorld :: GameWire impl (World, Point) UiWorld
-    generateUiWorld = proc (world, focus) -> do
-        let curFloor   = getFloor (focus ^. _3) (world ^. worldTerrain)
-            tileList   = toList curFloor
-            creatures' = getObjs world tileList tileCreatures
-            buildings' = getObjs world tileList tileBuildings
-            items'     = getObjs world tileList tileItems
-        returnA -< UiWorld tileList creatures' buildings' items' focus
+step :: UiImpl impl => GameWire impl UiState UiState
+step = arr (\s@UiState{s_world=w} -> s{s_world = execState stepWorld w})
 
+modifyWorld :: UiImpl impl => GameWire impl UiState World
+modifyWorld = proc s0 -> do
+    s1 <- execOnceSet digWire mkId . leftId coDig -< s0
+    returnA -< s_world s1
+
+digWire :: UiImpl impl => GameWire impl UiState UiState 
+digWire = arr (\ (s@UiState{s_world = w, s_focus = f, s_select = sel}) -> 
+                    s{s_world=w & worldJobs %~ (digJob f sel :)})
+  where
+    digJob :: Point -> Maybe Point -> Job
+    digJob p Nothing = JobDig (p, p)
+    digJob p (Just sel) = JobDig (boundingBox (sel, p))
+
+generateUiWorld :: UiImpl impl => GameWire impl UiState UiWorld
+generateUiWorld = proc (UiState{s_world=world, s_focus=focus, s_select=select}) -> do
+    let curFloor   = getFloor (focus ^. _3) (world ^. worldTerrain)
+        tileList   = toList curFloor
+        creatures' = getObjs world tileList tileCreatures
+        buildings' = getObjs world tileList tileBuildings
+        items'     = getObjs world tileList tileItems
+    returnA -< UiWorld tileList creatures' buildings' items' focus select
+  where
     getObjs :: (WorldObject World a) => World -> [[Tile]] -> Lens' Tile IS.IntSet -> [a]
     getObjs world tileList l = map (fromJust . (world ^.) . objLens . ObjId) . 
                               IS.toList $ (tileList ^. traverse . traverse . l)
     
-    moveCursor :: GameWire impl (Point, World) (Event (Dir, Int)) -> 
-                    GameWire impl (Point, World) Point
-    moveCursor eventWire = execOnceMap boundsWire (arr fst) . (mkId &&& eventWire)
-
-    boundsWire :: (Dir, Int) -> GameWire impl (Point, World) Point
-    boundsWire (dir, dist) = arr (\ (p, w) -> bounds (addDirI dir dist p) w)
-
-    bounds :: Point -> World -> Point
-    bounds p w = boundPoint p ((0,0,0), w ^. worldTerrain . terrainSize)

@@ -37,6 +37,9 @@ mapE f = mkSF_ (event NoEvent (Event . f))
 setE :: b -> Wire s e m (Event a) (Event b)
 setE = accumE const
 
+leftId :: Arrow a => a b c -> a b (b,c)
+leftId e = arr id &&& e
+
 whenRight :: Monad m => Either a b -> (b -> m ()) -> m ()
 whenRight = flip (either (const (return ())))
 

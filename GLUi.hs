@@ -34,6 +34,8 @@ instance UiImpl GLUi where
     processWorld    = processWorld'
     coQuit          = coQuit'
     coMoveCursorRel = coMoveCursorRel'
+    coStartSelect   = coStartSelect'
+    coCancelSelect  = coCancelSelect'
     coDig           = coDig'
                     
 
@@ -41,7 +43,8 @@ type GLWire a b = GameWire GLUi a b
 
 --Drawing, maybe other stuff later
 processWorld' :: GLWire UiWorld GLOutput
-processWorld' = arr (\ UiWorld{tiles = t, creatures = c, buildings = b, items = i, focusPos = f} -> 
+processWorld' = arr (\ UiWorld{tiles = t, creatures = c, buildings = b, items = i 
+                              ,focusPos = f, selectPos = sel} -> 
         GLOutput (mkTiles t ++ mkFocus f))
   where 
       --draw creatures, buildings, items here
@@ -64,7 +67,13 @@ coMoveCursorRel' = mRight <& mLeft <& mUp <& mDown <& mTop <& mBottom
     mBottom = mkDir Key'Comma  DBottom
 
 coDig' :: GLWire a (Event a)
-coDig' = keyDown Key'Space
+coDig' = keyDown Key'D
+
+coStartSelect' :: GLWire a (Event a)
+coStartSelect' = keyDown Key'Space
+
+coCancelSelect' :: GLWire a (Event a)
+coCancelSelect' = keyDown Key'Escape
 
 --fps stuff
 outputFreq' :: GLUi -> MWire IO a (Event a)
