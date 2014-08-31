@@ -55,7 +55,7 @@ makeActions creature = case ai ^. aiPlanState of
                                 .~  [ AIIdle
                                     , AIMove [DRight, DDown, DLeft, DUp]
                                     , AIIdle]
-                            & aiPlanState .~ PlanStarted
+                            & aiPlanState .~ PlanFinished
         PlanPickUpItem iid -> do
             mitemPos <- getObjPosId iid 
             case mitemPos of 
